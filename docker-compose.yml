@@ -1,0 +1,129 @@
+name: mlops-hw1
+
+x-app: &app
+  image: mlops-hw1-app:local
+  build: .
+  environment: &app-env
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    TRANSACTIONS_TOPIC: transactions
+    SCORES_TOPIC: scores
+    DLQ_TOPIC: dead_letters
+    DATABASE_URL: postgresql://${POSTGRES_USER:-fraud}:${POSTGRES_PASSWORD:-fraud}@postgres:5432/${POSTGRES_DB:-fraud}
+    FRAUD_THRESHOLD: ${FRAUD_THRESHOLD:-0.98}
+    TEST_CSV_PATH: /data/test.csv
+  restart: unless-stopped
+  init: true
+  healthcheck:
+    test: ["CMD", "python", "-m", "scripts.healthcheck"]
+    interval: 10s
+    timeout: 5s
+    start_period: 30s
+    retries: 3
+
+services:
+  kafka:
+    image: apache/kafka:3.9.1
+    user: "0:0"
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      start_period: 30s
+      retries: 10
+
+  postgres:
+    image: mlops-hw1-postgres:local
+    build: ./db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fraud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fraud}
+      POSTGRES_DB: ${POSTGRES_DB:-fraud}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kafka-init:
+    <<: *app
+    command: ["python", "-m", "scripts.init_topics"]
+    restart: "no"
+    healthcheck:
+      disable: true
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  scorer:
+    <<: *app
+    command: ["python", "-m", "app.scoring_worker"]
+    volumes:
+      - type: bind
+        source: ./Teta ML 1 2025/test.csv
+        target: /data/test.csv
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
+  scores-writer:
+    <<: *app
+    command: ["python", "-m", "app.sink"]
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  ui:
+    <<: *app
+    command: ["python", "-m", "streamlit", "run", "app/ui.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.gatherUsageStats=false"]
+    ports:
+      - "127.0.0.1:${UI_PORT:-8501}:8501"
+    volumes:
+      - type: bind
+        source: ./Teta ML 1 2025/test.csv
+        target: /data/test.csv
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+volumes:
+  kafka-data:
+  postgres-data:

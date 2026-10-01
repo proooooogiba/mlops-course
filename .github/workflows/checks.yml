@@ -1,0 +1,32 @@
+name: Verify inference and streaming stack
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: make test PYTHON=python
+      - name: Prepare isolated CI input (the Kaggle dataset is not in Git)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from tests.fixtures import transaction_csv
+          directory = Path("Teta ML 1 2025")
+          directory.mkdir(exist_ok=True)
+          (directory / "test.csv").write_bytes(transaction_csv())
+          PY
+      - run: docker compose config --quiet
+      - run: make up
+      - run: make smoke
+      - if: failure()
+        run: docker compose logs --tail=100
+      - if: always()
+        run: make down

@@ -1,21 +1,9 @@
 FROM python:3.12-slim
-
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app
 WORKDIR /app
-
-# Создание директории для логов
-RUN mkdir -p /app/logs && \
-    touch /app/logs/service.log && \
-    chmod -R 777 /app/logs  # Права на запись для всех пользователей
-
-# Установка зависимостей
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Копирование исходного кода
 COPY . .
-
-# Точки монтирования
-VOLUME /app/input
-VOLUME /app/output
-
-CMD ["python", "./app/app.py"]
+RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+USER appuser
+CMD ["python", "-m", "app.scoring_worker"]
