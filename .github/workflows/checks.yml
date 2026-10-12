@@ -1,11 +1,14 @@
-name: Verify inference and streaming stack
+name: Kafka to ClickHouse
 on:
+  push:
+    branches: [hw2]
   pull_request:
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -14,19 +17,29 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt
       - run: make test PYTHON=python
-      - name: Prepare isolated CI input (the Kaggle dataset is not in Git)
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          from tests.fixtures import transaction_csv
-          directory = Path("Teta ML 1 2025")
-          directory.mkdir(exist_ok=True)
-          (directory / "test.csv").write_bytes(transaction_csv())
-          PY
+      - name: Prepare synthetic data (Kaggle data is not redistributed)
+        run: python -m tests.make_demo
       - run: docker compose config --quiet
       - run: make up
-      - run: make smoke
+      - run: make load verify benchmark
+      - name: Check deterministic winners independently of the verifier
+        run: |
+          python - <<'PY'
+          import csv
+          from pathlib import Path
+          with Path('results/runtime/max_transaction_by_state.csv').open() as f:
+              assert list(csv.DictReader(f)) == [
+                  {'us_state': 'CA', 'cat_id': 'travel', 'max_amount': '100.00'},
+                  {'us_state': 'NY', 'cat_id': 'kids_pets', 'max_amount': '123.45'},
+                  {'us_state': 'TX', 'cat_id': 'grocery_pos', 'max_amount': '0.20'},
+              ]
+          PY
       - if: failure()
-        run: docker compose logs --tail=100
+        run: make logs
       - if: always()
-        run: make down
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-results
+          path: results/runtime/
+      - if: always()
+        run: docker compose down -v

@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "total_rows": 1048575,
+  "states": 51,
+  "source_counts": [
+    {
+      "source_file": "test.csv",
+      "rows": 262144,
+      "unique_rows": 262144,
+      "first_row": 1,
+      "last_row": 262144
+    },
+    {
+      "source_file": "train.csv",
+      "rows": 786431,
+      "unique_rows": 786431,
+      "first_row": 1,
+      "last_row": 786431
+    }
+  ],
+  "checks": [
+    "source checksums",
+    "row counts",
+    "unique row numbers",
+    "CSV oracle == raw SQL == optimized SQL"
+  ]
+}

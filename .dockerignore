@@ -1,13 +1,12 @@
 .git
 .github
 .venv
+.idea
 .pytest_cache
 **/__pycache__
 .env
-train_data
+data
+results
 Teta ML 1 2025
-*.zip
-.idea
 input
-output
 *.DS_Store

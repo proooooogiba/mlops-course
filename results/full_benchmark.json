@@ -1,0 +1,142 @@
+{
+  "clickhouse_version": "25.8.4.13",
+  "dataset_rows": 1048575,
+  "runs_per_query": 5,
+  "queries": {
+    "baseline": {
+      "runs": [
+        {
+          "query_duration_ms": 21,
+          "read_rows": 1048575,
+          "read_bytes": 64251936,
+          "memory_usage": 4420052
+        },
+        {
+          "query_duration_ms": 21,
+          "read_rows": 1048575,
+          "read_bytes": 64251936,
+          "memory_usage": 4226660
+        },
+        {
+          "query_duration_ms": 21,
+          "read_rows": 1048575,
+          "read_bytes": 64251936,
+          "memory_usage": 4418084
+        },
+        {
+          "query_duration_ms": 21,
+          "read_rows": 1048575,
+          "read_bytes": 64251936,
+          "memory_usage": 4226660
+        },
+        {
+          "query_duration_ms": 21,
+          "read_rows": 1048575,
+          "read_bytes": 64251936,
+          "memory_usage": 4226212
+        }
+      ],
+      "median_duration_ms": 21,
+      "median_read_rows": 1048575,
+      "median_read_bytes": 64251936
+    },
+    "optimized_raw": {
+      "runs": [
+        {
+          "query_duration_ms": 24,
+          "read_rows": 1048575,
+          "read_bytes": 19928291,
+          "memory_usage": 4248886
+        },
+        {
+          "query_duration_ms": 27,
+          "read_rows": 1048575,
+          "read_bytes": 19928291,
+          "memory_usage": 4275272
+        },
+        {
+          "query_duration_ms": 23,
+          "read_rows": 1048575,
+          "read_bytes": 19928291,
+          "memory_usage": 8407282
+        },
+        {
+          "query_duration_ms": 23,
+          "read_rows": 1048575,
+          "read_bytes": 19928291,
+          "memory_usage": 8407730
+        },
+        {
+          "query_duration_ms": 25,
+          "read_rows": 1048575,
+          "read_bytes": 19928291,
+          "memory_usage": 4242166
+        }
+      ],
+      "median_duration_ms": 24,
+      "median_read_rows": 1048575,
+      "median_read_bytes": 19928291
+    },
+    "aggregate": {
+      "runs": [
+        {
+          "query_duration_ms": 4,
+          "read_rows": 51,
+          "read_bytes": 7505,
+          "memory_usage": 4232592
+        },
+        {
+          "query_duration_ms": 7,
+          "read_rows": 51,
+          "read_bytes": 7505,
+          "memory_usage": 4233040
+        },
+        {
+          "query_duration_ms": 2,
+          "read_rows": 51,
+          "read_bytes": 7505,
+          "memory_usage": 4232976
+        },
+        {
+          "query_duration_ms": 2,
+          "read_rows": 51,
+          "read_bytes": 7505,
+          "memory_usage": 4236696
+        },
+        {
+          "query_duration_ms": 2,
+          "read_rows": 51,
+          "read_bytes": 7505,
+          "memory_usage": 4233040
+        }
+      ],
+      "median_duration_ms": 2,
+      "median_read_rows": 51,
+      "median_read_bytes": 7505
+    }
+  },
+  "storage": [
+    {
+      "table": "state_max",
+      "rows": 51,
+      "compressed_bytes": 1295,
+      "uncompressed_bytes": 2501,
+      "bytes_on_disk": 1402
+    },
+    {
+      "table": "transactions",
+      "rows": 1048575,
+      "compressed_bytes": 50559469,
+      "uncompressed_bytes": 168179786,
+      "bytes_on_disk": 50607412
+    },
+    {
+      "table": "transactions_baseline",
+      "rows": 1048575,
+      "compressed_bytes": 71891779,
+      "uncompressed_bytes": 191515721,
+      "bytes_on_disk": 71902188
+    }
+  ],
+  "note": "Warm-cache local single-node measurements; no concurrent producer. Query times vary by host."
+}

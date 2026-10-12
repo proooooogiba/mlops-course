@@ -2,12 +2,10 @@
 __pycache__/
 .pytest_cache/
 *.pyc
-*.DS_Store
-.env
-train_data/
-Teta ML 1 2025/
-*.zip
+.DS_Store
 .idea/
+.env
+data/*.csv
+Teta ML 1 2025/
 input/
-output/
-*.csv
+results/runtime/
