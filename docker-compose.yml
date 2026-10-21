@@ -38,7 +38,7 @@ services:
   storage-init:
     image: alpine:3.21
     user: "0:0"
-    command: ["sh", "-ec", "mkdir -p /shared/warehouse /shared/models /shared/reports /shared/work; chown -R 50000:0 /shared; chmod -R g+rwX /shared"]
+    command: ["sh", "-ec", "mkdir -p /shared/warehouse /shared/models /shared/reports /shared/work; chown -R ${AIRFLOW_UID:-50000}:0 /shared; chmod -R g+rwX /shared"]
     volumes:
       - ${SHARED_HOST_DIR:-./runtime}:/shared
 
@@ -46,7 +46,7 @@ services:
     &app
     image: mlops-hw3-app:local
     build: .
-    user: "50000:0"
+    user: "${AIRFLOW_UID:-50000}:0"
     init: true
     environment: &app-env
       SHARED_DIR: /shared
@@ -123,7 +123,7 @@ services:
     build:
       context: .
       dockerfile: airflow/Dockerfile
-    user: "50000:0"
+    user: "${AIRFLOW_UID:-50000}:0"
     environment: &airflow-env
       <<: *app-env
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -175,7 +175,7 @@ services:
 
   reports:
     image: python:3.11.13-slim-bookworm
-    user: "50000:0"
+    user: "${AIRFLOW_UID:-50000}:0"
     restart: unless-stopped
     command: ["python", "-m", "http.server", "8090", "--directory", "/reports"]
     ports:

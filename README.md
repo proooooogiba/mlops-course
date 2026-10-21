@@ -13,6 +13,7 @@ git clone --branch hw3 https://github.com/proooooogiba/mlops-course.git
 cd mlops-course
 mkdir -p data runtime/reports
 cp .env.example .env
+echo "AIRFLOW_UID=$(id -u)" >> .env
 # Положите размеченный train.csv из Teta ML в data/train.csv.
 # test.csv не нужен: в нём нет целевой переменной.
 docker compose up -d --build --wait --wait-timeout 300
@@ -24,11 +25,13 @@ docker compose up -d --build --wait --wait-timeout 300
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m tests.make_training_demo
+cp -n .env.example .env
+echo "AIRFLOW_UID=$(id -u)" >> .env
 # Генератор откажется перезаписывать существующий data/train.csv.
 docker compose up -d --build --wait --wait-timeout 300
 ```
 
-В контейнерах все зависимости уже установлены; локальный Python нужен только для тестов и проверочного скрипта. Для реального CSV локальные зависимости не обязательны.
+В контейнерах все зависимости уже установлены; локальный Python нужен только для тестов и проверочного скрипта. Для реального CSV локальные зависимости не обязательны. Для локальных ML-тестов и генератора используйте Python 3.11 или 3.12.
 
 | Сервис / результат | Адрес |
 |---|---|
@@ -40,6 +43,8 @@ docker compose up -d --build --wait --wait-timeout 300
 | Витрина, состояние, результаты | SQLite `runtime/warehouse/fraud.db` |
 
 Если порт занят, измените `AIRFLOW_PORT` / `REPORTS_PORT` в `.env`. При необходимости `TRAIN_FILENAME` выбирает CSV внутри `data/`, а `SHARED_HOST_DIR` — каталог состояния вместо `runtime/`; для проверочного скрипта в таком случае задайте `SHARED_DIR` с тем же путём на хосте. При изменении порта Airflow для проверочного скрипта задайте `AIRFLOW_URL=http://localhost:НОВЫЙ_ПОРТ`.
+
+`AIRFLOW_UID` согласует владельца общего каталога с пользователем хоста: это позволяет проверочному скрипту сохранять результаты и обслуживать `runtime/` на Linux без sudo. Контейнеры Airflow и приложения используют этот UID и группу 0.
 
 `bootstrap` один раз загружает **последние три календарных месяца** размеченного CSV, обучает начальную модель и выпускает DQ-отчёт. Для исходного файла это январь–март 2020, 92 849 строк. Ранние месяцы намеренно не загружаются, чтобы пополнение сразу продолжало текущее окно. Нужны три последовательных месяца и оба класса в каждом месяце. Начальный бинарник обучается на этих данных, а не скачивается отдельно.
 

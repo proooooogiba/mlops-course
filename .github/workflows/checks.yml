@@ -18,6 +18,8 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: make test PYTHON=python
       - run: python -m tests.make_training_demo
+      - name: Match shared-directory ownership to the runner
+        run: echo "AIRFLOW_UID=$(id -u)" > .env
       - run: docker compose config --quiet
       - run: make up
       - name: Reinitialize existing Kafka topics safely

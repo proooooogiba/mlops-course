@@ -12,4 +12,3 @@ def demo_records():
                          "cat_id": "travel", "us_state": "NY", "gender": "F",
                          "merch": "shop", "jobs": "engineer", "target": label})
     return rows
-
