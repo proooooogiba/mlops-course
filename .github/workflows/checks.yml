@@ -1,45 +1,45 @@
-name: Kafka to ClickHouse
+name: HW3 Airflow and fraud scoring
 on:
   push:
-    branches: [hw2]
+    branches: [hw3]
   pull_request:
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
           cache: pip
       - run: pip install -r requirements-dev.txt
       - run: make test PYTHON=python
-      - name: Prepare synthetic data (Kaggle data is not redistributed)
-        run: python -m tests.make_demo
+      - run: python -m tests.make_training_demo
       - run: docker compose config --quiet
       - run: make up
-      - run: make load verify benchmark
-      - name: Check deterministic winners independently of the verifier
+      - name: Reinitialize existing Kafka topics safely
+        run: docker compose run --rm kafka-init
+      - name: Parse actual DAGs with Airflow
         run: |
-          python - <<'PY'
-          import csv
-          from pathlib import Path
-          with Path('results/runtime/max_transaction_by_state.csv').open() as f:
-              assert list(csv.DictReader(f)) == [
-                  {'us_state': 'CA', 'cat_id': 'travel', 'max_amount': '100.00'},
-                  {'us_state': 'NY', 'cat_id': 'kids_pets', 'max_amount': '123.45'},
-                  {'us_state': 'TX', 'cat_id': 'grocery_pos', 'max_amount': '0.20'},
-              ]
-          PY
+          docker compose exec -T airflow-scheduler python -c "from airflow.models import DagBag; b=DagBag('/opt/airflow/dags'); assert not b.import_errors, b.import_errors; assert len(b.dags)==3, b.dags"
+      - name: Exercise actual scheduler, manual DAG runs and Kafka scoring
+        run: |
+          scorer_before=$(docker compose ps -q scorer)
+          python -m scripts.verify_hw3 --require-publish
+          test "$scorer_before" = "$(docker compose ps -q scorer)"
+          test "$(docker inspect --format '{{.RestartCount}}' "$scorer_before")" = "0"
       - if: failure()
-        run: make logs
+        run: docker compose logs --tail=150
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: integration-results
-          path: results/runtime/
+          name: hw3-evidence
+          path: |
+            runtime/verification.json
+            runtime/models/latest.json
+            runtime/reports/
       - if: always()
         run: docker compose down -v

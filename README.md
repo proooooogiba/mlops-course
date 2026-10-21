@@ -1,169 +1,193 @@
-# HW2: Kafka → ClickHouse
+# HW3: переобучение антифрода в Apache Airflow
 
-Загрузка CSV с транзакциями из Teta ML в Kafka, автоматическая запись в ClickHouse и поиск категории самой крупной транзакции в каждом штате. Решение находится в ветке **`hw2`**; ветка `hw1` содержит предыдущее задание.
+Решение в ветке **hw3** публичного репозитория [mlops-course](https://github.com/proooooogiba/mlops-course/tree/hw3). CPU-скоринг читает транзакции Kafka, возвращает `score`, `fraud_flag` и `model_version` в Kafka `scores` и сохраняет их в таблице результатов. Airflow по расписанию пополняет размеченную витрину, обучает кандидата на скользящем окне и публикует его, если качество не снизилось. Отдельный DAG выпускает HTML Data Quality отчёт.
 
-| Требование | Реализация |
-|---|---|
-| Отдельный Python-скрипт CSV → Kafka | [`scripts/publish_csv.py`](scripts/publish_csv.py) |
-| DDL таблиц и загрузка Kafka → ClickHouse | [`sql/01_schema.sql`](sql/01_schema.sql) |
-| SQL-запрос и результирующий CSV (пункты 2–3 задания повторяются) | [`sql/02_max_transaction_by_state.sql`](sql/02_max_transaction_by_state.sql), [`results/max_transaction_by_state.csv`](results/max_transaction_by_state.csv) |
-| Оптимизация хранения и выполнения запроса | Финальный DDL в `01_schema.sql`, исходный вариант в [`sql/00_baseline.sql`](sql/00_baseline.sql), быстрый запрос в [`sql/03_max_transaction_by_state_optimized.sql`](sql/03_max_transaction_by_state_optimized.sql) |
-| Воспроизводимый запуск | `Dockerfile`, `docker-compose.yml`, закреплённые версии в `requirements.txt`, команды ниже |
+Предыдущие задания доступны в ветках [hw1](https://github.com/proooooogiba/mlops-course/tree/hw1) и [hw2](https://github.com/proooooogiba/mlops-course/tree/hw2). DDL и скрипты HW2 сохранены; для его стенда есть отдельный `docker-compose.hw2.yml`. Приведённые ниже команды относятся к HW3.
 
-## Данные и смысл запроса
+## Быстрый старт
 
-Источник: [соревнование Teta ML на Kaggle](https://www.kaggle.com/t/1918f3f6435300327d38d6c596f97394). Скачайте архив через Kaggle и распакуйте **`train.csv` и `test.csv`** в каталог `data/`. Исходные CSV не включены в Git. `sample_submition.csv` не нужен: он содержит шаблон предсказаний, а не транзакции.
-
-В предоставленной версии `train.csv` содержит **786 431**, `test.csv` — **262 144** строки. Вместе это **1 048 575** транзакций, **51** код штата/округа (включая DC), **14** категорий. Проверенная выдача на обоих файлах сохранена в `results/max_transaction_by_state.csv`.
-
-Используются реальные названия столбцов: `us_state` — штат, `cat_id` — категория, `amount` — сумма. Запрос возвращает **категорию отдельной транзакции с максимальной суммой** по каждому штату. Например, две покупки еды по 70 и одна поездка за 100 дадут категорию поездки, даже если суммарные расходы на еду больше.
-
-Если суммы равны, выбирается запись с наибольшей парой `(source_file, source_row)`: сначала лексикографически имя файла, затем номер записи CSV, начиная с 1 после заголовка. Этот порядок одинаков в обоих SQL-запросах и Python-проверке. Формат результата: `us_state,cat_id,max_amount`.
-
-Сохраняются все 18 исходных столбцов; в `test.csv` отсутствующий `target` записывается как `NULL`. Добавляются имя файла и номер записи. Деньги представлены как `Decimal(12, 2)`, индексы почты — как строки с сохранением ведущих нулей. В исходном времени нет часового пояса: при загрузке его значения условно трактуются как UTC, без сдвига часов.
-
-## Запуск на полном наборе
-
-Нужны Docker с Compose v2 и работающим Docker Engine. Рекомендуется выделить Docker минимум 4 GB RAM, 2 CPU и 6 GB диска. Образы поддерживают Linux amd64 и arm64, запуск проверен на Apple Silicon. Python на хосте нужен только для локальных тестов и генератора синтетических CSV; основной запуск выполняется в контейнерах. `make` — необязательная удобная обёртка.
+Нужны Docker Engine, Compose v2.20+ и минимум 4 CPU / 8 GB RAM для Docker. Поддерживаются amd64 и arm64. Все внешние порты привязаны к `127.0.0.1`; сервисы общаются в общей Compose-сети. Первый запуск скачивает образы и зависимости, поэтому может занять несколько минут.
 
 ```bash
-git clone --branch hw2 https://github.com/proooooogiba/mlops-course.git
+git clone --branch hw3 https://github.com/proooooogiba/mlops-course.git
 cd mlops-course
-mkdir -p data results
-# Скопируйте распакованные train.csv и test.csv в data/.
-ls -lh data/train.csv data/test.csv
-
-make up
-make load
-make verify
-make benchmark
+mkdir -p data runtime/reports
+cp .env.example .env
+# Положите размеченный train.csv из Teta ML в data/train.csv.
+# test.csv не нужен: в нём нет целевой переменной.
+docker compose up -d --build --wait --wait-timeout 300
 ```
 
-`make up` собирает Python-образ, ждёт готовности Kafka и ClickHouse, создаёт топик `transactions` с тремя партициями и применяет DDL. `make load` отправляет по одному JSON-сообщению на запись CSV и ждёт подтверждения доставки всех сообщений от Kafka. Загрузка потоковая: весь CSV не читается в RAM. Ошибка формата или доставки завершает скрипт с ненулевым кодом.
-
-`make verify` ждёт загрузки данных в ClickHouse до 300 секунд, проверяет количество и уникальность исходных номеров записей, SHA-256 CSV, независимо вычисляет максимумы из файлов и сравнивает их с обоими SQL-запросами. Ожидаемый итог для полного набора:
-
-```text
-PASS: 1,048,575 rows; 51 states; CSV == raw SQL == optimized SQL
-```
-
-Новые результаты сохраняются в **`results/runtime/`**:
-
-| Файл | Содержание |
-|---|---|
-| `load_manifest.json` | Источники, SHA-256, число доставленных записей, ограничение строк |
-| `max_transaction_by_state.csv` | Результат текущего запуска |
-| `verification.json` | Результат проверки полноты загрузки и совпадения ответов |
-| `benchmark.json` | Замеры запросов и размеров хранения |
-
-Этот каталог игнорируется Git. Проверенные результаты полного набора в `results/` сохраняются независимо от последующих локальных запусков.
-
-Те же действия без `make`:
-
-```bash
-docker compose build producer
-docker compose up -d --wait kafka clickhouse
-docker compose run --rm clickhouse-init
-docker compose run --rm producer
-docker compose run --rm verify
-docker compose run --rm benchmark
-```
-
-## Быстрая проверка
-
-Для проверки на первых 1000 строках каждого файла вместо `make load` выполните:
-
-```bash
-make up
-make smoke
-```
-
-`make smoke` публикует до 1000 записей из каждого CSV, затем выполняет ту же полную проверку для выбранного поднабора. Он запускается на пустом стенде. Если данные уже загружались, перед новым запуском очистите стенд:
-
-```bash
-make reset
-make up
-make load       # Или make smoke для быстрой проверки.
-make verify
-```
-
-`make reset` удаляет **тома Kafka и ClickHouse только проекта `mlops-hw2`**, а также `results/runtime/`. Исходные CSV и сохранённая в Git выдача остаются. Обычный `make down` только останавливает и удаляет контейнеры: данные в томах сохраняются. После него `make up` и `make verify` продолжают работу с уже загруженными данными.
-
-Повторная публикация исходных CSV создаёт новые Kafka-сообщения. Поэтому producer отказывается загружать данные при существующем манифесте; для нового прогона используйте `make reset`. Kafka → ClickHouse имеет семантику **at least once**: при сбое возможна повторная доставка. Здесь нет обещания exactly once. Проверка обнаруживает дубликаты по `(source_file, source_row)`; максимум при повторе идентичной записи остаётся тем же, но число строк увеличится. После частичной/неудачной загрузки также нужен reset.
-
-## Устройство загрузки
-
-```mermaid
-flowchart LR
-    CSV[train.csv + test.csv] --> Producer[Python producer]
-    Producer --> Kafka[Kafka: transactions]
-    Kafka --> KE[transactions_kafka: Kafka engine]
-    KE --> MV1[kafka_to_transactions: materialized view]
-    MV1 --> Raw[transactions: MergeTree]
-    Raw --> MV2[transactions_to_state_max: materialized view]
-    MV2 --> Agg[state_max: AggregatingMergeTree]
-    Raw --> SQL1[SQL по исходным строкам]
-    Agg --> SQL2[SQL по агрегатам]
-```
-
-Kafka engine служит источником для materialized view, а `MergeTree` хранит данные. Порядок DDL важен: при подключении Kafka materialized view уже существуют таблица агрегатов и её materialized view, поэтому первые записи тоже попадают в агрегаты. Группа `clickhouse-homework-v1` начинает чтение с самых ранних доступных сообщений; offsets сохраняются в Kafka. Ошибочные сообщения не пропускаются (`kafka_skip_broken_messages = 0`).
-
-Брокер доступен внутри Compose как `kafka:9092`, ClickHouse — как `clickhouse:8123`. HTTP ClickHouse также опубликован на `127.0.0.1:8123`. Учебные логин/пароль: `homework`/`homework`. Если порт занят, скопируйте `.env.example` в `.env` и измените `CLICKHOUSE_HTTP_PORT`, например на `18123`; внутренние адреса менять не нужно.
-
-## SQL вручную
-
-Запрос по исходным строкам:
-
-```bash
-docker compose exec -T clickhouse clickhouse-client \
-  --user homework --password homework \
-  < sql/02_max_transaction_by_state.sql
-```
-
-Оптимизированный запрос:
-
-```bash
-docker compose exec -T clickhouse clickhouse-client \
-  --user homework --password homework \
-  < sql/03_max_transaction_by_state_optimized.sql
-```
-
-Чтобы сохранить выдачу самостоятельно, добавьте `> results/runtime/manual_result.csv` к любой из этих команд после успешного `make verify`.
-
-## Оптимизация и измерения
-
-`sql/00_baseline.sql` содержит исходный вариант: `MergeTree ORDER BY tuple()`, обычные строки и стандартное сжатие LZ4. `sql/01_schema.sql` — финальный оптимизированный DDL, который применяется при запуске.
-
-1. **Типы и кодеки.** `LowCardinality(String)` для штата, категории, пола и источника; `ZSTD(1)` для столбцов, `Delta` для времени/номера строки, `Gorilla` для координат. Выбор проверяется фактическим размером данных; кодеки сами по себе не гарантируют ускорение любого запроса.
-2. **Порядок хранения.** `(us_state, transaction_time, source_file, source_row)` группирует строки одного штата и позволяет индексу отсекать гранулы при фильтрации по штату. Месячные партиции удобны для отбора по периоду и обслуживания данных. Для запроса максимума по всем штатам за всё время нужны все партиции: само партиционирование не устраняет полный просмотр.
-3. **Предагрегация.** `AggregatingMergeTree` хранит `argMaxState` по штату, поддерживаемый materialized view при вставке. `argMaxMerge` объединяет эти состояния во время запроса, даже если фоновые слияния ещё не завершились. После слияний полный запрос читает около 51 строки вместо миллиона. Это основное ускорение целевого запроса; исходные транзакции остаются доступны для других запросов.
-
-`make benchmark` после проверки загрузки создаёт baseline как снимок исходных строк, выполняет `OPTIMIZE FINAL` для сопоставимого хранения, прогревает каждый запрос и запускает его пять раз. Проверяет равенство ответов, берёт `query_duration_ms`, `read_rows`, `read_bytes` и `memory_usage` из `system.query_log`, а размеры — из `system.parts`. Сравниваются baseline, оптимизированная исходная таблица и таблица агрегатов. Во время замера producer должен быть остановлен. Baseline остаётся для исследования и удаляется командой `make reset`.
-
-Результаты полного прогона и интерпретация измерений: [`results/REPORT.md`](results/REPORT.md). Время зависит от машины и кэша, поэтому сокращение `read_rows` и `read_bytes` — более устойчивые показатели, чем отношение миллисекунд на небольшом локальном стенде. В обычной загрузке `OPTIMIZE FINAL` не требуется.
-
-## Тесты и диагностика
-
-Локальные тесты не требуют контейнеров:
+Источник исходного CSV: [Teta ML на Kaggle](https://www.kaggle.com/t/1918f3f6435300327d38d6c596f97394). Датасет не распространяется в Git. Вместо Kaggle можно воспроизвести весь стенд на небольших синтетических данных, **до первого запуска**:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
-make test PYTHON=.venv/bin/python
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m tests.make_training_demo
+# Генератор откажется перезаписывать существующий data/train.csv.
+docker compose up -d --build --wait --wait-timeout 300
 ```
 
-Проверяются точные суммы, ведущие нули индекса, отсутствие `target`, ошибки CSV, ограничения типов, отличие максимальной транзакции от суммы категории и равенство сумм между/внутри файлов. GitHub Actions дополнительно поднимает реальную Kafka и ClickHouse, публикует синтетические CSV с известными ответами, проверяет результат и запускает benchmark. Для запуска без Kaggle в **свежем клоне** можно создать этот набор командой `python3 -m tests.make_demo`, затем выполнить `make up load verify benchmark`. Генератор перезаписывает `data/train.csv` и `data/test.csv`, поэтому не запускайте его поверх скачанного набора.
+В контейнерах все зависимости уже установлены; локальный Python нужен только для тестов и проверочного скрипта. Для реального CSV локальные зависимости не обязательны.
 
-Полезные команды:
+| Сервис / результат | Адрес |
+|---|---|
+| Airflow UI | [localhost:8081](http://localhost:8081), `admin` / `admin` |
+| Последний DQ-отчёт | [localhost:8090/latest.html](http://localhost:8090/latest.html) |
+| Все DQ-отчёты и сравнения моделей | [localhost:8090](http://localhost:8090) |
+| Kafka внутри сети | `kafka:9092`, топики `transactions`, `scores`, `dead_letters` |
+| Модели на хосте | `runtime/models/model_v_*.cbm`, указатель `runtime/models/latest.json` |
+| Витрина, состояние, результаты | SQLite `runtime/warehouse/fraud.db` |
+
+Если порт занят, измените `AIRFLOW_PORT` / `REPORTS_PORT` в `.env`. При необходимости `TRAIN_FILENAME` выбирает CSV внутри `data/`, а `SHARED_HOST_DIR` — каталог состояния вместо `runtime/`; для проверочного скрипта в таком случае задайте `SHARED_DIR` с тем же путём на хосте. При изменении порта Airflow для проверочного скрипта задайте `AIRFLOW_URL=http://localhost:НОВЫЙ_ПОРТ`.
+
+`bootstrap` один раз загружает **последние три календарных месяца** размеченного CSV, обучает начальную модель и выпускает DQ-отчёт. Для исходного файла это январь–март 2020, 92 849 строк. Ранние месяцы намеренно не загружаются, чтобы пополнение сразу продолжало текущее окно. Нужны три последовательных месяца и оба класса в каждом месяце. Начальный бинарник обучается на этих данных, а не скачивается отдельно.
+
+После успешного bootstrap автоматически запускаются scorer, simulator, scheduler, webserver и сервер отчётов. Завершившиеся с кодом 0 `bootstrap`, `storage-init`, `kafka-init`, `airflow-init` — ожидаемые одноразовые сервисы. PostgreSQL 16 используется для метаданных Airflow с LocalExecutor. Размеченная витрина и результаты размещены в SQLite WAL на локальном общем каталоге: это компактный учебный стенд, рассчитанный на один хост. Транзакции записи сериализуются через `BEGIN IMMEDIATE` и busy timeout.
+
+## Запуск DAG вручную и проверка результата
+
+В Airflow UI откройте DAG и вкладку Graph. Все DAG включены автоматически, имеют `catchup=False`, `max_active_runs=1` и расписание **каждые 5 минут**:
+
+1. Запустите **supply_labeled_batch** кнопкой Trigger DAG и дождитесь success: `append_month → prune_history`.
+2. Запустите **retrain_fraud**, дождитесь success: `prepare_window → train_candidate → evaluate_candidate → publish_model`.
+3. Запустите **dataset_quality**, дождитесь success: `inspect_dataset → render_report → assert_quality`.
+
+Если retrain опередил supply и нового месяца ещё нет, подготовка возвращает пустой план, последующие задачи завершаются без изменений. Запустите retrain ещё раз после supply. Никаких случайных разбиений или сдвигов окна при пустом запуске нет.
+
+Ручной запуск через CLI тоже доступен:
+
+```bash
+docker compose exec -T airflow-scheduler airflow dags trigger supply_labeled_batch
+# После success первого DAG:
+docker compose exec -T airflow-scheduler airflow dags trigger retrain_fraud
+docker compose exec -T airflow-scheduler airflow dags trigger dataset_quality
+```
+
+Проверить новый файл и версию в результатах:
+
+```bash
+ls -lh runtime/models/
+cat runtime/models/latest.json
+docker compose exec -T scorer python -m scripts.inspect_hw3
+# Скорер пишет Loaded model v_... при загрузке новой версии:
+docker compose logs --tail=30 scorer
+```
+
+`inspect_hw3` выводит месяцы витрины, указатель обучения, статусы запусков и последние пять скоров. Поле `model_version` у новых транзакций должно совпасть с `version` в `latest.json`. Simulator непрерывно отправляет транзакции каждые 0.5 секунды с новыми ID и текущим временем, без `target`. Для просмотра Kafka:
+
+```bash
+docker compose exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server kafka:9092 --topic scores --from-beginning --max-messages 5
+```
+
+Выходной контракт (первые три поля сохранены из HW1):
+
+```json
+{"transaction_id":"...","score":0.023,"fraud_flag":0,"model_version":"v_..."}
+```
+
+`fraud_flag = int(score > 0.98)`. На входе остаются исходные признаки транзакции: `transaction_time`, `amount`, `population_city`, координаты покупателя и продавца, `cat_id`, `us_state`, `gender`, `merch`, `jobs`; остальные поля CSV допустимы и не участвуют в модели. Если `transaction_id` отсутствует (сообщения HW2), используется `topic:partition:offset`. Невалидные сообщения направляются в `dead_letters`. Kafka-доставка at least once; таблица `scores` подавляет повторы по ID. Offsets подтверждаются только после подтверждения публикации результата Kafka. Имена топиков и формат основных полей не менялись.
+
+Полностью автоматическая проверка **реального scheduler**, ручных запусков всех трёх DAG и появления скоров текущей версии:
+
+```bash
+python3 -m scripts.verify_hw3
+# Или: make verify
+```
+
+Скрипт использует стандартную библиотеку Python, ждёт окончания задач, проверяет модель, HTML и таблицу скоров, сохраняет `runtime/verification.json`. При отклонении кандидата он проверяет решение gate, а текущая модель продолжает работу. На синтетическом датасете тесты отдельно требуют принятия следующей версии и проверяют hot reload на том же объекте скорера. Для просмотра DAG без UI:
+
+```bash
+docker compose exec -T airflow-scheduler airflow dags list
+docker compose exec -T airflow-scheduler airflow dags list-import-errors
+```
+
+## Данные, окно и собственный препроцессинг
+
+`MONTHLY_BATCH_SIZE=10000`, `HISTORY_MONTHS=36`, окно обучения фиксировано — **3 месяца**. Поставка берёт детерминированную выборку с возвращением из существующих строк и переносит `transaction_time` в месяц после максимального месяца витрины. Время суток сохраняется, дни 29–31 обрезаются до последнего допустимого дня нового месяца. Для учебной проверки в батче гарантируются оба класса. Это синтетическое продолжение истории, а не новые независимо размеченные наблюдения.
+
+Первые два месяца окна идут в train, последний — в test. При принятии модели окно сдвигается ровно на один месяц: например, январь–март → февраль–апрель. Снимок обоих разбиений сохраняется в `runtime/work/<run_hash>/dataset.pkl`; между задачами передаются только пути и небольшой план через XCom. Pickle читается только из собственных локальных артефактов задач.
+
+Собственный препроцессинг находится в `pipeline/features.py` и одинаков для обучения и скоринга:
+
+- `log1p(amount)` и `log1p(population_city)`, сумма на жителя;
+- расстояние покупатель–продавец по haversine;
+- циклические `sin/cos` часа и дня недели, признак выходного;
+- нормализация регистра и пробелов категорий, заполнение пропусков категорий;
+- исключение ID, имён, адреса и `target` из признаков.
+
+Используется CatBoost на CPU: depth 5, 80 итераций, seed 42, 2 потока. Последний месяц не участвует ни в fit, ни в early stopping. Преобразования не обучаются на test и не требуют внешнего preprocessing-файла; категории обрабатывает CatBoost. Версии ML-библиотек одинаково закреплены в образах Airflow и scorer.
+
+## Проверка качества модели и публикация
+
+Для дисбалансного фрода основная метрика — **Average Precision (AP)**; дополнительная — **ROC-AUC**. Текущий champion заново оценивается на том же последнем месяце, что и кандидат. Сравнивать новую метрику со старым числом с другого месяца было бы некорректно. Обе метрики кандидата должны быть **не ниже** champion; равенство допускается. Первый bootstrap проходит gate без champion. Подробности, размеры train/test и решение сохраняются в `runtime/reports/training_v_*.json`.
+
+Отклонённый кандидат остаётся только в рабочем каталоге. Он не попадает в `models`, не меняет `latest.json` и не продвигает `trained_month`. DAG при этом успешен: отклонение — ожидаемое бизнес-решение, а не инфраструктурная ошибка. Следующий запуск повторит тот же месяц. При детерминированном повторении отклонение может сохраняться: для нового эксперимента можно изменить `MODEL_ITERATIONS` в `.env`, пересоздать сервисы через `docker compose up -d` и запустить новый DAG. Проверка метрик остаётся обязательной.
+
+Принятый бинарник записывается под уникальным именем, затем через `os.replace` атомарно переключается `latest.json`, и только потом фиксируется указатель в SQLite. Скорер перед каждым сообщением перечитывает manifest, загружает новый бинарник и меняет пару `(model, version)` только после успешной загрузки. **Перезапуск scorer для смены модели не нужен.** Старые версии сохраняются для сравнения; автоматического удаления моделей и рабочих снимков в этом учебном проекте нет.
+
+## Повторные запуски и ошибки
+
+- Поставка записывает батч и ledger `batches` одной транзакцией. Повтор task с тем же Airflow `run_id` возвращает уже записанный месяц. Новый ручной запуск с новым ID означает новую поставку.
+- Подготовка фиксирует целевой месяц в `training_runs` и повторно использует снимок. Ошибка fit/evaluate не изменяет указатель.
+- Если процесс упал после переключения manifest, но до commit указателя, retry допубликует **тот же** месяц и версию. Повтор уже опубликованной задачи не откатывает champion.
+- Пока обучение не приняло месяц, supply может уйти максимум на два месяца вперёд. Затем включается backpressure: новые месяцы не создаются. Поэтому отклонение модели не приводит к удалению ещё нужной истории.
+- Retention удаляет наблюдения старше 36 календарных месяцев относительно последнего батча и дополнительно защищает следующее окно обучения. Оба ledger сохраняются независимо от удаления исходных строк.
+- `down` / `up` сохраняют состояние: seed не загружает CSV повторно, старая модель остаётся доступной.
+
+## Data Quality
+
+Отдельный DAG `dataset_quality.py` проверяет полную размеченную витрину:
+
+1. Датасет не пуст.
+2. Присутствуют все обязательные признаки, timestamp, ID и target.
+3. ID транзакций уникальны.
+4. Временные метки корректно разбираются.
+5. Target заполнен и принадлежит `{0, 1}`.
+6. Сумма конечна и неотрицательна.
+7. Население конечно и неотрицательно.
+8. Все координаты конечны, широта в `[-90,90]`, долгота в `[-180,180]`.
+9. Пять категориальных признаков заполнены и не пусты после удаления пробелов.
+10. В каждом месяце представлены оба класса, месяцев минимум три.
+11. В истории нет пропущенных календарных месяцев.
+
+Сначала сохраняются JSON и HTML в отдельном соседнем с `models` каталоге `runtime/reports`, затем задача `assert_quality` падает при нарушении правила. Поэтому HTML доступен **даже для неуспешного DQ DAG**. В отчёте есть ID запуска, число строк, PASS/FAIL и детали каждого правила. `latest.html` — последний отчёт; исторические отчёты сохраняются под именем `dq_<run_hash>.html`.
+
+## Проверки и структура
+
+Результаты выполненной контейнерной проверки, решения gate и подтверждение hot reload сохранены в [results/hw3/REPORT.md](results/hw3/REPORT.md).
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest -q
+```
+
+Тесты проверяют временное разбиение, отсутствие target в признаках, повтор seed/supply, backpressure, блокировку обеих ухудшившихся метрик, неизменность указателя после отказа, восстановление после сбоя между manifest и commit, отсутствие отката от повторного запуска старой задачи, DQ-отчёт при ошибке и hot reload без пересоздания Scorer. GitHub Actions дополнительно собирает контейнеры, парсит DAG через Airflow, запускает все DAG реальным scheduler и требует публикации новой версии на синтетических данных (`verify_hw3 --require-publish`). Проверяется появление скоров этой версии, неизменность ID контейнера scorer и нулевое число его перезапусков.
+
+```text
+app/                   bootstrap, Kafka scorer, simulator, создание топиков
+pipeline/features.py   общий собственный препроцессинг
+pipeline/retrain.py    подготовка → обучение → сравнение → публикация
+pipeline/supply.py     месячный батч и очистка истории
+pipeline/quality.py    DQ-проверки, HTML, утверждение результата
+pipeline/storage.py    транзакции, схема и атомарные файловые операции
+dags/                  только сборка графов, расписания и зависимости
+airflow/Dockerfile     Airflow 2.10.5 + те же ML-зависимости
+scripts/verify_hw3.py   интеграционная проверка через Airflow REST API
+runtime/               данные, модели, отчёты и рабочие снимки; игнорируется Git
+```
+
+Диагностика:
 
 ```bash
 docker compose ps -a
-make logs
-docker compose exec -T clickhouse clickhouse-client \
-  --user homework --password homework \
-  --query "SELECT * FROM system.kafka_consumers FORMAT Vertical"
+docker compose logs --tail=100 bootstrap airflow-init airflow-scheduler scorer
+docker compose exec -T scorer python -m scripts.inspect_hw3
+docker compose down                    # Остановка с сохранением данных.
 ```
 
-Если producer не находит файл, проверьте `data/train.csv` и `data/test.csv`. При timeout загрузки смотрите ошибки ClickHouse и `system.kafka_consumers`, а не считайте успешное завершение producer подтверждением записи в ClickHouse. DDL с `IF NOT EXISTS` допускает повторную инициализацию, но не мигрирует существующую старую схему: после изменения структуры для учебного стенда выполните `make reset`.
+Для полностью чистого прогона остановите стенд, удалите только `runtime/` этого клона и выполните `docker compose down -v`, затем снова `up`. Это удаляет обученную историю, модели, результаты и метаданные Airflow; исходный `data/train.csv` сохраняется. При изменении исходного CSV после seed нужен такой чистый прогон, иначе перезапуск продолжит прежнюю витрину.
 
-Документация: [Kafka engine](https://clickhouse.com/docs/engines/table-engines/integrations/kafka), [AggregatingMergeTree](https://clickhouse.com/docs/engines/table-engines/mergetree-family/aggregatingmergetree), [официальный образ Kafka](https://hub.docker.com/r/apache/kafka).
+Полезные источники: [задание и пример семинара](https://github.com/NikitaMalykhin/mlops_realtime_fraud_detector_airflow), [Airflow в Docker](https://airflow.apache.org/docs/apache-airflow/2.10.5/howto/docker-compose/index.html), [LocalExecutor и PostgreSQL](https://airflow.apache.org/docs/apache-airflow/2.10.5/howto/set-up-database.html), [определение Average Precision](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html). Реализация препроцессинга, SQLite-витрины, gate и публикации в этом решении собственная.

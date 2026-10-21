@@ -9,3 +9,5 @@ data/*.csv
 Teta ML 1 2025/
 input/
 results/runtime/
+runtime/
+catboost_info/

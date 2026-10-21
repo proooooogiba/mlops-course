@@ -1,23 +1,8 @@
-name: mlops-hw2
-
-x-app: &app
-  image: mlops-hw2-app:local
-  build: .
-  init: true
-  environment:
-    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    KAFKA_TOPIC: transactions
-    CLICKHOUSE_URL: http://clickhouse:8123
-    CLICKHOUSE_USER: homework
-    CLICKHOUSE_PASSWORD: homework
-  volumes:
-    - ./data:/data:ro
-    - ./results:/results
-
+name: mlops-hw3
 services:
   kafka:
     image: apache/kafka:3.9.1
-    user: "0:0"
+    user: 0:0
     restart: unless-stopped
     environment:
       KAFKA_NODE_ID: 1
@@ -32,86 +17,176 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes:
-      - kafka-data:/var/lib/kafka/data
+    - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
-      interval: 5s
+      test:
+      - CMD
+      - /opt/kafka/bin/kafka-topics.sh
+      - --bootstrap-server
+      - localhost:9092
+      - --list
+      interval: 10s
       timeout: 10s
       start_period: 30s
-      retries: 20
+      retries: 12
+
+  storage-init:
+    image: alpine:3.21
+    user: "0:0"
+    command: ["sh", "-ec", "mkdir -p /shared/warehouse /shared/models /shared/reports /shared/work; chown -R 50000:0 /shared; chmod -R g+rwX /shared"]
+    volumes:
+      - ${SHARED_HOST_DIR:-./runtime}:/shared
+
+  bootstrap:
+    &app
+    image: mlops-hw3-app:local
+    build: .
+    user: "50000:0"
+    init: true
+    environment: &app-env
+      SHARED_DIR: /shared
+      TRAIN_DATA_CSV: /data/${TRAIN_FILENAME:-train.csv}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONTHLY_BATCH_SIZE: ${MONTHLY_BATCH_SIZE:-10000}
+      HISTORY_MONTHS: ${HISTORY_MONTHS:-36}
+      MODEL_ITERATIONS: ${MODEL_ITERATIONS:-80}
+    volumes:
+      - ./data:/data:ro
+      - ${SHARED_HOST_DIR:-./runtime}:/shared
+    command: ["python", "-m", "app.bootstrap"]
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
 
   kafka-init:
-    image: apache/kafka:3.9.1
-    entrypoint: ["/opt/kafka/bin/kafka-topics.sh"]
-    command: ["--bootstrap-server", "kafka:9092", "--create", "--if-not-exists", "--topic", "transactions", "--partitions", "3", "--replication-factor", "1", "--config", "retention.ms=-1"]
+    <<: *app
+    command: ["python", "-m", "app.init_topics"]
     depends_on:
       kafka:
         condition: service_healthy
 
-  clickhouse:
-    image: clickhouse/clickhouse-server:25.8.4.13
+  scorer:
+    <<: *app
     restart: unless-stopped
-    environment:
-      CLICKHOUSE_USER: homework
-      CLICKHOUSE_PASSWORD: homework
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-    ports:
-      - "127.0.0.1:${CLICKHOUSE_HTTP_PORT:-8123}:8123"
-    volumes:
-      - clickhouse-data:/var/lib/clickhouse
-      - ./config/clickhouse.xml:/etc/clickhouse-server/config.d/homework.xml:ro
-    ulimits:
-      nofile:
-        soft: 262144
-        hard: 262144
+    command: ["python", "-m", "app.scoring_worker"]
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--user", "homework", "--password", "homework", "--query", "SELECT 1"]
-      interval: 5s
+      test: ["CMD", "python", "-c", "import time; from pathlib import Path; assert time.time()-Path('/tmp/scorer-heartbeat').stat().st_mtime < 120"]
+      interval: 15s
       timeout: 5s
-      start_period: 20s
-      retries: 20
-
-  clickhouse-init:
-    image: clickhouse/clickhouse-server:25.8.4.13
-    entrypoint: ["/bin/sh", "-ec"]
-    command: ["clickhouse-client --host clickhouse --user homework --password homework --multiquery < /sql/01_schema.sql"]
-    volumes:
-      - ./sql:/sql:ro
+      start_period: 60s
+      retries: 5
     depends_on:
+      bootstrap:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
-      clickhouse:
+
+  simulator:
+    <<: *app
+    restart: unless-stopped
+    command: ["python", "-m", "app.simulator"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import time; from pathlib import Path; assert time.time()-Path('/tmp/simulator-heartbeat').stat().st_mtime < 120"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+
+  airflow-db:
+    image: postgres:16.9-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  airflow-init:
+    &airflow
+    image: mlops-hw3-airflow:local
+    build:
+      context: .
+      dockerfile: airflow/Dockerfile
+    user: "50000:0"
+    environment: &airflow-env
+      <<: *app-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOW__CORE__PARALLELISM: "4"
+      AIRFLOW__WEBSERVER__SECRET_KEY: hw3-local-development-key
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+    volumes:
+      - ${SHARED_HOST_DIR:-./runtime}:/shared
+      - airflow-logs:/opt/airflow/logs
+    command: ["bash", "-ec", "airflow db migrate; airflow users list --output json | python -c 'import json,sys; sys.exit(0 if any(u[\"username\"] == \"admin\" for u in json.load(sys.stdin)) else 1)' || airflow users create --username admin --password admin --firstname HW3 --lastname Admin --role Admin --email admin@example.com"]
+    depends_on:
+      airflow-db:
         condition: service_healthy
-
-  producer:
-    <<: *app
-    profiles: ["tools"]
-    command: ["python", "-m", "scripts.publish_csv", "/data/train.csv", "/data/test.csv"]
-    depends_on:
-      clickhouse-init:
+      bootstrap:
         condition: service_completed_successfully
 
-  verify:
-    <<: *app
-    profiles: ["tools"]
-    command: ["python", "-m", "scripts.verify"]
+  airflow-scheduler:
+    <<: *airflow
+    restart: unless-stopped
+    command: ["scheduler"]
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $${HOSTNAME}"]
+      interval: 20s
+      timeout: 15s
+      start_period: 60s
+      retries: 5
     depends_on:
-      clickhouse-init:
+      airflow-init:
         condition: service_completed_successfully
 
-  benchmark:
-    <<: *app
-    profiles: ["tools"]
-    command: ["python", "-m", "scripts.benchmark"]
+  airflow-webserver:
+    <<: *airflow
+    restart: unless-stopped
+    command: ["webserver"]
+    ports:
+      - "127.0.0.1:${AIRFLOW_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
     depends_on:
-      clickhouse-init:
+      airflow-init:
+        condition: service_completed_successfully
+
+  reports:
+    image: python:3.11.13-slim-bookworm
+    user: "50000:0"
+    restart: unless-stopped
+    command: ["python", "-m", "http.server", "8090", "--directory", "/reports"]
+    ports:
+      - "127.0.0.1:${REPORTS_PORT:-8090}:8090"
+    volumes:
+      - ${SHARED_HOST_DIR:-./runtime}/reports:/reports:ro
+    depends_on:
+      bootstrap:
         condition: service_completed_successfully
 
 volumes:
   kafka-data:
-  clickhouse-data:
+  airflow-db:
+  airflow-logs:

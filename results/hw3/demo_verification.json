@@ -1,0 +1,45 @@
+{
+  "before": {
+    "version": "v_29fff5b1efd105abc620",
+    "file": "model_v_29fff5b1efd105abc620.cbm",
+    "month": "2020-04",
+    "metrics": {
+      "average_precision": 0.9999999999999999,
+      "roc_auc": 1.0
+    },
+    "window_start": "2020-02"
+  },
+  "after": {
+    "version": "v_5792d205498e8b9b5be0",
+    "file": "model_v_5792d205498e8b9b5be0.cbm",
+    "month": "2020-05",
+    "metrics": {
+      "average_precision": 1.0,
+      "roc_auc": 1.0
+    },
+    "window_start": "2020-03"
+  },
+  "training_run": "manual__verify_ab0962878b424898b02b3744d5e490f8",
+  "decision": {
+    "version": "v_5792d205498e8b9b5be0",
+    "month": "2020-05",
+    "window_start": "2020-03",
+    "train_rows": 10100,
+    "test_rows": 10000,
+    "candidate": {
+      "average_precision": 1.0,
+      "roc_auc": 1.0
+    },
+    "champion": {
+      "average_precision": 1.0,
+      "roc_auc": 1.0
+    },
+    "champion_version": "v_29fff5b1efd105abc620",
+    "accepted": true
+  },
+  "versioned_scores": 14,
+  "dags": "all manual runs successful",
+  "scorer_container_before": "db598880ca3820d3a211092a2568e99c07e9353618ada2e0bf7d04716c8abd43",
+  "scorer_container_after": "db598880ca3820d3a211092a2568e99c07e9353618ada2e0bf7d04716c8abd43",
+  "scorer_restart_count": 0
+}

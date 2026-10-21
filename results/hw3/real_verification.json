@@ -1,0 +1,42 @@
+{
+  "before": {
+    "version": "v_333c04dd151a2a6831c0",
+    "file": "model_v_333c04dd151a2a6831c0.cbm",
+    "month": "2020-03",
+    "metrics": {
+      "average_precision": 0.6717206065751827,
+      "roc_auc": 0.9725462364280499
+    },
+    "window_start": "2020-01"
+  },
+  "after": {
+    "version": "v_333c04dd151a2a6831c0",
+    "file": "model_v_333c04dd151a2a6831c0.cbm",
+    "month": "2020-03",
+    "metrics": {
+      "average_precision": 0.6717206065751827,
+      "roc_auc": 0.9725462364280499
+    },
+    "window_start": "2020-01"
+  },
+  "training_run": "manual__verify_b8e30d7dad9b48bf8f39363a6082f5b4",
+  "decision": {
+    "version": "v_94fba9d1c8c2513c3447",
+    "month": "2020-04",
+    "window_start": "2020-02",
+    "train_rows": 53604,
+    "test_rows": 10000,
+    "candidate": {
+      "average_precision": 0.7788587050634301,
+      "roc_auc": 0.9741948467595869
+    },
+    "champion": {
+      "average_precision": 0.8168740870512368,
+      "roc_auc": 0.9729759995845209
+    },
+    "champion_version": "v_333c04dd151a2a6831c0",
+    "accepted": false
+  },
+  "versioned_scores": 101,
+  "dags": "all manual runs successful"
+}

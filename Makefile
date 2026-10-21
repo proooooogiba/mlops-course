@@ -1,37 +1,25 @@
 PYTHON ?= python3
 COMPOSE ?= docker compose
 
-.PHONY: up load smoke verify benchmark test down reset logs
-
+.PHONY: up down logs test demo verify inspect
 up:
-	$(COMPOSE) build producer
-	$(COMPOSE) up -d --wait kafka clickhouse
-	$(COMPOSE) run --rm clickhouse-init
-
-load:
-	$(COMPOSE) run --rm producer
-
-smoke:
-	$(COMPOSE) run --rm producer python -m scripts.publish_csv /data/train.csv /data/test.csv --limit 1000
-	$(COMPOSE) run --rm verify
-
-verify:
-	$(COMPOSE) run --rm verify
-
-benchmark:
-	$(COMPOSE) run --rm benchmark
-
-test:
-	$(PYTHON) -m pytest -q
-
-logs:
-	$(COMPOSE) logs --tail=100 kafka clickhouse clickhouse-init
+	mkdir -p runtime/reports data
+	$(COMPOSE) up -d --build --wait --wait-timeout 300
 
 down:
 	$(COMPOSE) down
 
-# Destructive ONLY for this homework's named Docker volumes and runtime outputs.
-# Does not touch source CSVs or the committed results for the full dataset.
-reset:
-	$(COMPOSE) run --rm --no-deps --build producer python -c "import shutil; from pathlib import Path; p=Path('/results/runtime'); shutil.rmtree(p) if p.exists() else None"
-	$(COMPOSE) down -v --remove-orphans
+logs:
+	$(COMPOSE) logs --tail=100 scorer simulator airflow-scheduler airflow-webserver bootstrap
+
+test:
+	$(PYTHON) -m pytest -q
+
+demo:
+	$(PYTHON) -m tests.make_training_demo
+
+verify:
+	$(PYTHON) -m scripts.verify_hw3
+
+inspect:
+	$(COMPOSE) exec -T scorer python -m scripts.inspect_hw3
