@@ -12,7 +12,7 @@ from pipeline.features import CATEGORICAL, features
 from pipeline.storage import add_month, atomic_bytes, atomic_json, db, root, run_token
 
 
-def prepare_window(run_key):
+def prepare_window(run_key, replay_current=False):
     """Snapshot the next three consecutive months into a run-specific artifact.
 
     The run ledger fixes the month before any training. An existing snapshot is reused
@@ -26,7 +26,7 @@ def prepare_window(run_key):
         if run is None:
             pointer = conn.execute("SELECT value FROM state WHERE key='trained_month'").fetchone()
             months = [r[0] for r in conn.execute("SELECT DISTINCT substr(transaction_time,1,7) FROM labeled_transactions ORDER BY 1")]
-            month = add_month(pointer["value"]) if pointer else months[-1]
+            month = (pointer["value"] if replay_current else add_month(pointer["value"])) if pointer else months[-1]
             start = add_month(month, -2)
             if any(add_month(start, i) not in months for i in range(3)):
                 return None

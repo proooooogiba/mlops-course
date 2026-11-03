@@ -1,0 +1,14 @@
+{
+  "high_ratio_firing": {
+    "Fraud share above 15%": "firing",
+    "Scoring stream stopped": "inactive"
+  },
+  "stopped_stream_firing": {
+    "Fraud share above 15%": "firing",
+    "Scoring stream stopped": "firing"
+  },
+  "recovered": {
+    "Fraud share above 15%": "inactive",
+    "Scoring stream stopped": "inactive"
+  }
+}

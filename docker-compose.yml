@@ -1,4 +1,4 @@
-name: mlops-hw3
+name: mlops-hw5
 services:
   kafka:
     image: apache/kafka:3.9.1
@@ -34,21 +34,23 @@ services:
       timeout: 10s
       start_period: 30s
       retries: 12
-
   storage-init:
     image: alpine:3.21
-    user: "0:0"
-    command: ["sh", "-ec", "mkdir -p /shared/warehouse /shared/models /shared/reports /shared/work; chown -R ${AIRFLOW_UID:-50000}:0 /shared; chmod -R g+rwX /shared"]
+    user: 0:0
+    command:
+    - sh
+    - -ec
+    - mkdir -p /shared/warehouse /shared/models /shared/reports /shared/work; chown
+      -R ${AIRFLOW_UID:-50000}:0 /shared; chmod -R g+rwX /shared
     volumes:
-      - ${SHARED_HOST_DIR:-./runtime}:/shared
-
+    - ${HW5_SHARED_DIR:-./runtime/hw5}:/shared
+    - warehouse:/shared/warehouse
   bootstrap:
-    &app
-    image: mlops-hw3-app:local
+    image: mlops-hw5-app:local
     build: .
-    user: "${AIRFLOW_UID:-50000}:0"
+    user: ${AIRFLOW_UID:-50000}:0
     init: true
-    environment: &app-env
+    environment: &id001
       SHARED_DIR: /shared
       TRAIN_DATA_CSV: /data/${TRAIN_FILENAME:-train.csv}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -56,52 +58,111 @@ services:
       HISTORY_MONTHS: ${HISTORY_MONTHS:-36}
       MODEL_ITERATIONS: ${MODEL_ITERATIONS:-80}
     volumes:
-      - ./data:/data:ro
-      - ${SHARED_HOST_DIR:-./runtime}:/shared
-    command: ["python", "-m", "app.bootstrap"]
+    - ./data:/data:ro
+    - ${HW5_SHARED_DIR:-./runtime/hw5}:/shared
+    - warehouse:/shared/warehouse
+    command:
+    - python
+    - -m
+    - app.bootstrap
     depends_on:
       storage-init:
         condition: service_completed_successfully
-
   kafka-init:
-    <<: *app
-    command: ["python", "-m", "app.init_topics"]
+    image: mlops-hw5-app:local
+    build: .
+    user: ${AIRFLOW_UID:-50000}:0
+    init: true
+    environment: *id001
+    volumes:
+    - ./data:/data:ro
+    - ${HW5_SHARED_DIR:-./runtime/hw5}:/shared
+    - warehouse:/shared/warehouse
+    command:
+    - python
+    - -m
+    - app.init_topics
     depends_on:
       kafka:
         condition: service_healthy
-
   scorer:
-    <<: *app
-    restart: unless-stopped
-    command: ["python", "-m", "app.scoring_worker"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import time; from pathlib import Path; assert time.time()-Path('/tmp/scorer-heartbeat').stat().st_mtime < 120"]
-      interval: 15s
-      timeout: 5s
-      start_period: 60s
-      retries: 5
+    image: mlops-hw5-app:local
+    build: .
+    user: ${AIRFLOW_UID:-50000}:0
+    init: true
+    environment:
+      SHARED_DIR: /shared
+      TRAIN_DATA_CSV: /data/${TRAIN_FILENAME:-train.csv}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONTHLY_BATCH_SIZE: ${MONTHLY_BATCH_SIZE:-10000}
+      HISTORY_MONTHS: ${HISTORY_MONTHS:-36}
+      MODEL_ITERATIONS: ${MODEL_ITERATIONS:-80}
+      FRAUD_THRESHOLD: ${FRAUD_THRESHOLD:-0.98}
+    volumes:
+    - ./data:/data:ro
+    - ${HW5_SHARED_DIR:-./runtime/hw5}:/shared
+    - warehouse:/shared/warehouse
+    command:
+    - python
+    - -m
+    - app.scoring_worker
     depends_on:
       bootstrap:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
-
+    restart: unless-stopped
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import time; from pathlib import Path; assert time.time()-Path('/tmp/scorer-heartbeat').stat().st_mtime
+        < 120
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    ports:
+    - 127.0.0.1:${SCORER_METRICS_PORT:-8000}:8000
   simulator:
-    <<: *app
-    restart: unless-stopped
-    command: ["python", "-m", "app.simulator"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import time; from pathlib import Path; assert time.time()-Path('/tmp/simulator-heartbeat').stat().st_mtime < 120"]
-      interval: 15s
-      timeout: 5s
-      start_period: 60s
-      retries: 5
+    image: mlops-hw5-app:local
+    build: .
+    user: ${AIRFLOW_UID:-50000}:0
+    init: true
+    environment:
+      SHARED_DIR: /shared
+      TRAIN_DATA_CSV: /data/${TRAIN_FILENAME:-train.csv}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONTHLY_BATCH_SIZE: ${MONTHLY_BATCH_SIZE:-10000}
+      HISTORY_MONTHS: ${HISTORY_MONTHS:-36}
+      MODEL_ITERATIONS: ${MODEL_ITERATIONS:-80}
+      SIMULATOR_INTERVAL: ${SIMULATOR_INTERVAL:-0.5}
+    volumes:
+    - ./data:/data:ro
+    - ${HW5_SHARED_DIR:-./runtime/hw5}:/shared
+    - warehouse:/shared/warehouse
+    command:
+    - python
+    - -m
+    - app.simulator
     depends_on:
       bootstrap:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
-
+    restart: unless-stopped
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import time; from pathlib import Path; assert time.time()-Path('/tmp/simulator-heartbeat').stat().st_mtime
+        < 120
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
   airflow-db:
     image: postgres:16.9-bookworm
     restart: unless-stopped
@@ -110,83 +171,234 @@ services:
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     volumes:
-      - airflow-db:/var/lib/postgresql/data
+    - airflow-db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U airflow
       interval: 5s
       timeout: 5s
       retries: 20
-
   airflow-init:
-    &airflow
-    image: mlops-hw3-airflow:local
-    build:
+    image: mlops-hw5-airflow:local
+    build: &id002
       context: .
       dockerfile: airflow/Dockerfile
-    user: "${AIRFLOW_UID:-50000}:0"
-    environment: &airflow-env
-      <<: *app-env
+    user: ${AIRFLOW_UID:-50000}:0
+    environment: &id003
+      SHARED_DIR: /shared
+      TRAIN_DATA_CSV: /data/${TRAIN_FILENAME:-train.csv}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONTHLY_BATCH_SIZE: ${MONTHLY_BATCH_SIZE:-10000}
+      HISTORY_MONTHS: ${HISTORY_MONTHS:-36}
+      MODEL_ITERATIONS: ${MODEL_ITERATIONS:-80}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
-      AIRFLOW__CORE__PARALLELISM: "4"
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+      AIRFLOW__CORE__PARALLELISM: '4'
       AIRFLOW__WEBSERVER__SECRET_KEY: hw3-local-development-key
       AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
     volumes:
-      - ${SHARED_HOST_DIR:-./runtime}:/shared
-      - airflow-logs:/opt/airflow/logs
-    command: ["bash", "-ec", "airflow db migrate; airflow users list --output json | python -c 'import json,sys; sys.exit(0 if any(u[\"username\"] == \"admin\" for u in json.load(sys.stdin)) else 1)' || airflow users create --username admin --password admin --firstname HW3 --lastname Admin --role Admin --email admin@example.com"]
+    - ${HW5_SHARED_DIR:-./runtime/hw5}:/shared
+    - airflow-logs:/opt/airflow/logs
+    - warehouse:/shared/warehouse
+    command:
+    - bash
+    - -ec
+    - airflow db migrate; airflow users list --output json | python -c 'import json,sys;
+      sys.exit(0 if any(u["username"] == "admin" for u in json.load(sys.stdin)) else
+      1)' || airflow users create --username admin --password admin --firstname HW3
+      --lastname Admin --role Admin --email admin@example.com
     depends_on:
       airflow-db:
         condition: service_healthy
       bootstrap:
         condition: service_completed_successfully
-
   airflow-scheduler:
-    <<: *airflow
+    image: mlops-hw5-airflow:local
+    build: *id002
+    user: ${AIRFLOW_UID:-50000}:0
+    environment: *id003
+    volumes:
+    - ${HW5_SHARED_DIR:-./runtime/hw5}:/shared
+    - airflow-logs:/opt/airflow/logs
+    - warehouse:/shared/warehouse
+    command:
+    - scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     restart: unless-stopped
-    command: ["scheduler"]
     healthcheck:
-      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $${HOSTNAME}"]
+      test:
+      - CMD-SHELL
+      - airflow jobs check --job-type SchedulerJob --hostname $${HOSTNAME}
       interval: 20s
       timeout: 15s
       start_period: 60s
       retries: 5
+  airflow-webserver:
+    image: mlops-hw5-airflow:local
+    build: *id002
+    user: ${AIRFLOW_UID:-50000}:0
+    environment: *id003
+    volumes:
+    - ${HW5_SHARED_DIR:-./runtime/hw5}:/shared
+    - airflow-logs:/opt/airflow/logs
+    - warehouse:/shared/warehouse
+    command:
+    - webserver
     depends_on:
       airflow-init:
         condition: service_completed_successfully
-
-  airflow-webserver:
-    <<: *airflow
     restart: unless-stopped
-    command: ["webserver"]
     ports:
-      - "127.0.0.1:${AIRFLOW_PORT:-8081}:8080"
+    - 127.0.0.1:${AIRFLOW_PORT:-8081}:8080
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      test:
+      - CMD
+      - curl
+      - --fail
+      - http://localhost:8080/health
       interval: 15s
       timeout: 10s
       start_period: 60s
       retries: 5
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-
   reports:
     image: python:3.11.13-slim-bookworm
-    user: "${AIRFLOW_UID:-50000}:0"
+    user: ${AIRFLOW_UID:-50000}:0
     restart: unless-stopped
-    command: ["python", "-m", "http.server", "8090", "--directory", "/reports"]
+    command:
+    - python
+    - -m
+    - http.server
+    - '8090'
+    - --directory
+    - /reports
     ports:
-      - "127.0.0.1:${REPORTS_PORT:-8090}:8090"
+    - 127.0.0.1:${REPORTS_PORT:-8090}:8090
     volumes:
-      - ${SHARED_HOST_DIR:-./runtime}/reports:/reports:ro
+    - ${HW5_SHARED_DIR:-./runtime/hw5}/reports:/reports:ro
     depends_on:
       bootstrap:
         condition: service_completed_successfully
-
+  scores-db:
+    image: postgres:16.9-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: scores
+      POSTGRES_USER: scores
+      POSTGRES_PASSWORD: scores
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
+    volumes:
+    - scores-db:/var/lib/postgresql/data
+    - ./monitoring/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U scores -d scores
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  score-writer:
+    image: mlops-hw5-app:local
+    build: .
+    restart: unless-stopped
+    init: true
+    command:
+    - python
+    - -m
+    - app.score_writer
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SCORES_DSN: postgresql://scores:scores@scores-db:5432/scores
+    ports:
+    - 127.0.0.1:${WRITER_METRICS_PORT:-8001}:8001
+    depends_on:
+      scores-db:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import time; from pathlib import Path; assert time.time()-Path('/tmp/writer-heartbeat').stat().st_mtime
+        < 120
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.retention.time=7d
+    ports:
+    - 127.0.0.1:${PROMETHEUS_PORT:-9090}:9090
+    volumes:
+    - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - prometheus-data:/prometheus
+    healthcheck:
+      test:
+      - CMD
+      - wget
+      - -q
+      - -O
+      - '-'
+      - http://localhost:9090/-/ready
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    restart: unless-stopped
+    command:
+    - --path.rootfs=/host
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+)($|/)
+    volumes:
+    - /:/host:ro
+    pid: host
+  grafana:
+    image: grafana/grafana:11.6.0
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:${GRAFANA_PORT:-3000}:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 1s
+      GF_UNIFIED_ALERTING_ENABLED: 'true'
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
+    volumes:
+    - grafana-data:/var/lib/grafana
+    - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      scores-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - wget
+      - -q
+      - -O
+      - '-'
+      - http://localhost:3000/api/health
+      interval: 5s
+      timeout: 5s
+      retries: 30
 volumes:
-  kafka-data:
-  airflow-db:
-  airflow-logs:
+  kafka-data: null
+  airflow-db: null
+  airflow-logs: null
+  scores-db: null
+  prometheus-data: null
+  grafana-data: null
+  warehouse: null

@@ -1,7 +1,7 @@
-name: HW3 Airflow and fraud scoring
+name: HW5 monitoring and fraud scoring
 on:
   push:
-    branches: [hw3]
+    branches: [hw5]
   pull_request:
   workflow_dispatch:
 
@@ -17,9 +17,11 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt
       - run: make test PYTHON=python
-      - run: python -m tests.make_training_demo
+      - run: python -m tests.make_monitoring_demo
       - name: Match shared-directory ownership to the runner
-        run: echo "AIRFLOW_UID=$(id -u)" > .env
+        run: |
+          echo "AIRFLOW_UID=$(id -u)" > .env
+          echo "GRAFANA_DB_PASSWORD=$(openssl rand -hex 16)" >> .env
       - run: docker compose config --quiet
       - run: make up
       - name: Reinitialize existing Kafka topics safely
@@ -30,7 +32,7 @@ jobs:
       - name: Exercise actual scheduler, manual DAG runs and Kafka scoring
         run: |
           scorer_before=$(docker compose ps -q scorer)
-          python -m scripts.verify_hw3 --require-publish
+          python -m scripts.verify_hw5 --reload
           test "$scorer_before" = "$(docker compose ps -q scorer)"
           test "$(docker inspect --format '{{.RestartCount}}' "$scorer_before")" = "0"
       - if: failure()
@@ -38,10 +40,10 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hw3-evidence
+          name: hw5-evidence
           path: |
-            runtime/verification.json
-            runtime/models/latest.json
-            runtime/reports/
+            runtime/hw5/verification.json
+            runtime/hw5/models/latest.json
+            runtime/hw5/reports/
       - if: always()
         run: docker compose down -v

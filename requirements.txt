@@ -5,3 +5,5 @@ pandas==2.1.4
 scikit-learn==1.6.1
 scipy==1.15.2
 cloudpickle==2.2.1
+prometheus-client==0.22.1
+psycopg[binary]==3.2.6

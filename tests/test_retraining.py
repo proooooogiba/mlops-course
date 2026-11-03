@@ -109,7 +109,9 @@ def test_manifest_crash_recovers_without_skipping_month(warehouse, monkeypatch):
 def test_hot_reload_same_object_and_versioned_score(warehouse):
     first = pipeline("initial")
     retrain.publish_model(first)
-    scorer = Scorer()
+    from app.monitoring import ScoringMetrics
+    monitoring = ScoringMetrics()
+    scorer = Scorer(monitoring)
     record = dict(demo_records()[0], transaction_id="demo")
     result = scorer.score(record)
     assert result["model_version"] == first["version"]
@@ -122,6 +124,10 @@ def test_hot_reload_same_object_and_versioned_score(warehouse):
     # Replaying an old published task cannot undo the hot reload.
     retrain.publish_model(first)
     assert scorer.score(record)["model_version"] == next_plan["version"]
+    assert monitoring.registry.get_sample_value('fraud_model_loads_total', {'version': first['version']}) == 1
+    assert monitoring.registry.get_sample_value('fraud_model_loads_total', {'version': next_plan['version']}) == 1
+    assert monitoring.registry.get_sample_value('fraud_model_active', {'version': first['version']}) == 0
+    assert monitoring.registry.get_sample_value('fraud_model_active', {'version': next_plan['version']}) == 1
 
 
 def test_dq_failure_still_has_html(warehouse):
@@ -175,3 +181,14 @@ def test_failed_training_does_not_move_window(warehouse, monkeypatch):
     assert pointer() == '2020-03'
     assert retrain.prepare_window('failure')['month'] == '2020-04'
     assert retrain.prepare_window('new-attempt')['month'] == '2020-04'
+
+
+def test_retrain_current_window_preserves_pointer(warehouse):
+    initial = pipeline('initial')
+    retrain.publish_model(initial)
+    before = pointer()
+    plan = retrain.prepare_window('monitoring-demo', replay_current=True)
+    assert plan['month'] == before
+    version = retrain.publish_model(retrain.evaluate_candidate(retrain.train_candidate(plan)))
+    assert version and version != initial['version']
+    assert pointer() == before
