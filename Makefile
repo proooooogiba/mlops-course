@@ -3,14 +3,14 @@ COMPOSE ?= docker compose
 
 .PHONY: up down logs test demo verify inspect
 up:
-	mkdir -p runtime/reports data
+	mkdir -p runtime/hw5/reports data
 	$(COMPOSE) up -d --build --wait --wait-timeout 300
 
 down:
 	$(COMPOSE) down
 
 logs:
-	$(COMPOSE) logs --tail=100 scorer simulator airflow-scheduler airflow-webserver bootstrap
+	$(COMPOSE) logs --tail=100 scorer simulator airflow-scheduler airflow-webserver bootstrap score-writer prometheus grafana
 
 test:
 	$(PYTHON) -m pytest -q
@@ -19,7 +19,7 @@ demo:
 	$(PYTHON) -m tests.make_training_demo
 
 verify:
-	$(PYTHON) -m scripts.verify_hw3
+	$(PYTHON) -m scripts.verify_hw5
 
 inspect:
 	$(COMPOSE) exec -T scorer python -m scripts.inspect_hw3
@@ -37,3 +37,13 @@ hw4-docs:
 .PHONY: hw4-lint
 hw4-lint:
 	$(COMPOSE) -f docker-compose.hw4.yml run --rm --entrypoint sqlfluff dbt lint models macros tests
+
+.PHONY: verify-hw5 reload-hw5
+verify-hw5:
+	$(PYTHON) -m scripts.verify_hw5
+reload-hw5:
+	$(PYTHON) -m scripts.verify_hw5 --reload
+
+.PHONY: verify-hw5-alerts
+verify-hw5-alerts:
+	$(PYTHON) -m scripts.verify_hw5_alerts

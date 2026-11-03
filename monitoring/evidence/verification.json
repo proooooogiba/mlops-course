@@ -1,0 +1,21 @@
+{
+  "targets": "3/3 up",
+  "live_growth": true,
+  "panels_with_data": 24,
+  "filters": {
+    "state": "NY",
+    "merchant": "fraud_Carroll PLC"
+  },
+  "alerts": [
+    "fraud-high-ratio",
+    "fraud-stream-stopped"
+  ],
+  "postgres_replay": "duplicate ignored",
+  "reload": {
+    "before": "v_8c5e50c7cabeb30ba708",
+    "after": "v_4348f886816e8583b4d2",
+    "same_container": "1b44444102d6105f2456fdaea56af4dbc2a5b7f12bc4cb7a7fd396141b059023",
+    "unchanged_restart_count": "0",
+    "annotation": true
+  }
+}

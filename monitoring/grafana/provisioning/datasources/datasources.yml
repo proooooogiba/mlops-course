@@ -1,0 +1,24 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 1s
+    editable: false
+  - name: Scores PostgreSQL
+    uid: scores-postgres
+    type: postgres
+    url: scores-db:5432
+    user: grafana_reader
+    jsonData:
+      database: scores
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD
+    editable: false

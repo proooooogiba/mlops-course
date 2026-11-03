@@ -1,0 +1,126 @@
+apiVersion: 1
+groups:
+- orgId: 1
+  name: Fraud service
+  folder: Fraud Monitoring
+  interval: 10s
+  rules:
+  - uid: fraud-high-ratio
+    title: Fraud share above 15%
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 60
+        to: 0
+      model:
+        refId: A
+        expr: sum(rate(fraud_flagged_total[1m])) / clamp_min(sum(rate(fraud_transactions_total[1m])),
+          0.000001)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        conditions: []
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - type: query
+          evaluator:
+            type: gt
+            params:
+            - 0.15
+          operator:
+            type: and
+          reducer:
+            type: last
+            params: []
+          query:
+            params:
+            - C
+    noDataState: Alerting
+    execErrState: Alerting
+    for: 30s
+    annotations:
+      summary: More than 15% of scored transactions flagged in the last minute.
+    labels:
+      service: scorer
+      severity: warning
+    isPaused: false
+  - uid: fraud-stream-stopped
+    title: Scoring stream stopped
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 60
+        to: 0
+      model:
+        refId: A
+        expr: sum(increase(fraud_transactions_total[30s]))
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        conditions: []
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - type: query
+          evaluator:
+            type: lt
+            params:
+            - 0.1
+          operator:
+            type: and
+          reducer:
+            type: last
+            params: []
+          query:
+            params:
+            - C
+    noDataState: Alerting
+    execErrState: Alerting
+    for: 20s
+    annotations:
+      summary: No successfully scored transaction for at least 30 seconds.
+    labels:
+      service: scorer
+      severity: warning
+    isPaused: false
