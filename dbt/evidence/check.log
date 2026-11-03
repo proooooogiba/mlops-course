@@ -1,0 +1,200 @@
+docker compose -f docker-compose.hw4.yml run --rm --entrypoint make dbt check
+ Container mlops-hw4-clickhouse-1 Running
+ Container mlops-hw4-clickhouse-1 Waiting
+ Container mlops-hw4-clickhouse-1 Healthy
+ Container mlops-hw4-dbt-run-fa5a06e2e8c9 Creating
+ Container mlops-hw4-dbt-run-fa5a06e2e8c9 Created
+dbt deps
+13:44:20  Running with dbt=1.9.10
+13:44:22  Installing dbt-labs/dbt_utils
+13:44:22  Installed from version 1.3.0
+13:44:22  Updated version available: 1.4.1
+13:44:22  Installing godatadriven/dbt_date
+13:44:23  Installed from version 0.10.1
+13:44:23  Updated version available: 0.15.0
+13:44:23  Installing metaplane/dbt_expectations
+13:44:24  Installed from version 0.10.8
+13:44:24  Updated version available: 0.10.10
+13:44:24
+13:44:24  Updates available for packages: ['dbt-labs/dbt_utils', 'godatadriven/dbt_date', 'metaplane/dbt_expectations']
+Update your versions in packages.yml, then run dbt deps
+dbt build
+13:44:26  Running with dbt=1.9.10
+13:44:26  Registered adapter: clickhouse=1.9.5
+13:44:26  Found 7 models, 65 data tests, 1 seed, 1 source, 871 macros, 2 unit tests
+13:44:26
+13:44:26  Concurrency: 4 threads (target='dev')
+13:44:26
+13:44:26  1 of 75 START seed file `fraud_analytics`.`risk_thresholds` .................... [RUN]
+13:44:26  2 of 75 START test source_accepted_values_raw_transactions_target__False__0__1 . [RUN]
+13:44:26  3 of 75 START test source_not_null_raw_transactions_amount ..................... [RUN]
+13:44:26  4 of 75 START test source_not_null_raw_transactions_transaction_time ........... [RUN]
+13:44:27  1 of 75 OK loaded seed file fraud_analytics.risk_thresholds .................... [INSERT 2 in 0.08s]
+13:44:27  5 of 75 START test accepted_values_risk_thresholds_risk_level__MEDIUM__HIGH .... [RUN]
+13:44:27  3 of 75 PASS source_not_null_raw_transactions_amount ........................... [PASS in 0.11s]
+13:44:27  5 of 75 PASS accepted_values_risk_thresholds_risk_level__MEDIUM__HIGH .......... [PASS in 0.02s]
+13:44:27  4 of 75 PASS source_not_null_raw_transactions_transaction_time ................. [PASS in 0.11s]
+13:44:27  2 of 75 PASS source_accepted_values_raw_transactions_target__False__0__1 ....... [PASS in 0.11s]
+13:44:27  6 of 75 START test not_null_risk_thresholds_min_fraud_rate ..................... [RUN]
+13:44:27  7 of 75 START test not_null_risk_thresholds_risk_level ......................... [RUN]
+13:44:27  8 of 75 START test unique_risk_thresholds_risk_level ........................... [RUN]
+13:44:27  9 of 75 START unit_test stg_transactions::amount_bucket_boundaries ............. [RUN]
+13:44:27  6 of 75 PASS not_null_risk_thresholds_min_fraud_rate ........................... [PASS in 0.08s]
+13:44:27  7 of 75 PASS not_null_risk_thresholds_risk_level ............................... [PASS in 0.08s]
+13:44:27  8 of 75 PASS unique_risk_thresholds_risk_level ................................. [PASS in 0.08s]
+13:44:27  9 of 75 PASS stg_transactions::amount_bucket_boundaries ........................ [PASS in 0.21s]
+13:44:27  10 of 75 START sql view model `fraud_analytics`.`stg_transactions` ............. [RUN]
+13:44:27  10 of 75 OK created sql view model `fraud_analytics`.`stg_transactions` ........ [OK in 0.03s]
+13:44:27  11 of 75 START test accepted_values_stg_transactions_amount_bucket__SMALL__MEDIUM__LARGE  [RUN]
+13:44:27  12 of 75 START test accepted_values_stg_transactions_day_of_week__False__1__2__3__4__5__6__7  [RUN]
+13:44:27  13 of 75 START test accepted_values_stg_transactions_is_fraud__False__0__1 ..... [RUN]
+13:44:27  14 of 75 START test accepted_values_stg_transactions_transaction_hour__False__0__1__2__3__4__5__6__7__8__9__10__11__12__13__14__15__16__17__18__19__20__21__22__23  [RUN]
+13:44:27  11 of 75 PASS accepted_values_stg_transactions_amount_bucket__SMALL__MEDIUM__LARGE  [PASS in 0.03s]
+13:44:27  13 of 75 PASS accepted_values_stg_transactions_is_fraud__False__0__1 ........... [PASS in 0.04s]
+13:44:27  14 of 75 PASS accepted_values_stg_transactions_transaction_hour__False__0__1__2__3__4__5__6__7__8__9__10__11__12__13__14__15__16__17__18__19__20__21__22__23  [PASS in 0.03s]
+13:44:27  12 of 75 PASS accepted_values_stg_transactions_day_of_week__False__1__2__3__4__5__6__7  [PASS in 0.04s]
+13:44:27  16 of 75 START test dbt_expectations_expect_column_values_to_be_between_stg_transactions_amount__0  [RUN]
+13:44:27  17 of 75 START test not_null_stg_transactions_amount ........................... [RUN]
+13:44:27  15 of 75 START test assert_no_negative_amounts ................................. [RUN]
+13:44:27  18 of 75 START test not_null_stg_transactions_amount_bucket .................... [RUN]
+13:44:27  15 of 75 PASS assert_no_negative_amounts ....................................... [PASS in 0.04s]
+13:44:27  17 of 75 PASS not_null_stg_transactions_amount ................................. [PASS in 0.04s]
+13:44:27  16 of 75 PASS dbt_expectations_expect_column_values_to_be_between_stg_transactions_amount__0  [PASS in 0.04s]
+13:44:27  18 of 75 PASS not_null_stg_transactions_amount_bucket .......................... [PASS in 0.04s]
+13:44:27  19 of 75 START test not_null_stg_transactions_category ......................... [RUN]
+13:44:27  20 of 75 START test not_null_stg_transactions_customer_id ...................... [RUN]
+13:44:27  21 of 75 START test not_null_stg_transactions_merchant ......................... [RUN]
+13:44:27  22 of 75 START test not_null_stg_transactions_transaction_date ................. [RUN]
+13:44:27  19 of 75 PASS not_null_stg_transactions_category ............................... [PASS in 0.03s]
+13:44:27  20 of 75 PASS not_null_stg_transactions_customer_id ............................ [PASS in 0.03s]
+13:44:27  21 of 75 PASS not_null_stg_transactions_merchant ............................... [PASS in 0.03s]
+13:44:27  22 of 75 PASS not_null_stg_transactions_transaction_date ....................... [PASS in 0.03s]
+13:44:27  23 of 75 START test not_null_stg_transactions_transaction_time ................. [RUN]
+13:44:27  24 of 75 START test not_null_stg_transactions_us_state ......................... [RUN]
+13:44:27  24 of 75 PASS not_null_stg_transactions_us_state ............................... [PASS in 0.02s]
+13:44:27  23 of 75 PASS not_null_stg_transactions_transaction_time ....................... [PASS in 0.02s]
+13:44:27  25 of 75 START sql table model `fraud_analytics`.`mart_customer_risk_profile` .. [RUN]
+13:44:27  26 of 75 START sql table model `fraud_analytics`.`mart_daily_state_metrics` .... [RUN]
+13:44:27  27 of 75 START sql table model `fraud_analytics`.`mart_fraud_by_state` ......... [RUN]
+13:44:27  30 of 75 START unit_test mart_fraud_by_category::category_fraud_excludes_unknown_labels  [RUN]
+13:44:27  30 of 75 PASS mart_fraud_by_category::category_fraud_excludes_unknown_labels ... [PASS in 0.18s]
+13:44:27  31 of 75 START sql table model `fraud_analytics`.`mart_fraud_by_category` ...... [RUN]
+13:44:27  26 of 75 OK created sql table model `fraud_analytics`.`mart_daily_state_metrics`  [OK in 0.24s]
+13:44:27  25 of 75 OK created sql table model `fraud_analytics`.`mart_customer_risk_profile`  [OK in 0.24s]
+13:44:27  28 of 75 START sql table model `fraud_analytics`.`mart_hourly_fraud_pattern` ... [RUN]
+13:44:27  29 of 75 START sql table model `fraud_analytics`.`mart_merchant_analytics` ..... [RUN]
+13:44:27  31 of 75 OK created sql table model `fraud_analytics`.`mart_fraud_by_category` . [OK in 0.10s]
+13:44:27  32 of 75 START test dbt_utils_unique_combination_of_columns_mart_daily_state_metrics_transaction_date__us_state  [RUN]
+13:44:27  32 of 75 PASS dbt_utils_unique_combination_of_columns_mart_daily_state_metrics_transaction_date__us_state  [PASS in 0.05s]
+13:44:27  27 of 75 OK created sql table model `fraud_analytics`.`mart_fraud_by_state` .... [OK in 0.35s]
+13:44:27  33 of 75 START test not_null_mart_daily_state_metrics_total_amount ............. [RUN]
+13:44:27  34 of 75 START test not_null_mart_daily_state_metrics_transaction_count ........ [RUN]
+13:44:27  28 of 75 OK created sql table model `fraud_analytics`.`mart_hourly_fraud_pattern`  [OK in 0.11s]
+13:44:27  35 of 75 START test not_null_mart_daily_state_metrics_transaction_date ......... [RUN]
+13:44:27  29 of 75 OK created sql table model `fraud_analytics`.`mart_merchant_analytics`  [OK in 0.12s]
+13:44:27  36 of 75 START test not_null_mart_daily_state_metrics_us_state ................. [RUN]
+13:44:27  33 of 75 PASS not_null_mart_daily_state_metrics_total_amount ................... [PASS in 0.03s]
+13:44:27  34 of 75 PASS not_null_mart_daily_state_metrics_transaction_count .............. [PASS in 0.03s]
+13:44:27  37 of 75 START test accepted_values_mart_customer_risk_profile_risk_level__HIGH__MEDIUM__LOW__UNKNOWN  [RUN]
+13:44:27  38 of 75 START test dbt_utils_unique_combination_of_columns_mart_customer_risk_profile_customer_id  [RUN]
+13:44:27  35 of 75 PASS not_null_mart_daily_state_metrics_transaction_date ............... [PASS in 0.02s]
+13:44:27  36 of 75 PASS not_null_mart_daily_state_metrics_us_state ....................... [PASS in 0.02s]
+13:44:27  39 of 75 START test not_null_mart_customer_risk_profile_customer_id ............ [RUN]
+13:44:27  40 of 75 START test not_null_mart_customer_risk_profile_fraud_count ............ [RUN]
+13:44:27  37 of 75 PASS accepted_values_mart_customer_risk_profile_risk_level__HIGH__MEDIUM__LOW__UNKNOWN  [PASS in 0.03s]
+13:44:27  38 of 75 PASS dbt_utils_unique_combination_of_columns_mart_customer_risk_profile_customer_id  [PASS in 0.02s]
+13:44:27  41 of 75 START test not_null_mart_customer_risk_profile_labeled_transaction_count  [RUN]
+13:44:27  42 of 75 START test not_null_mart_customer_risk_profile_total_amount ........... [RUN]
+13:44:27  39 of 75 PASS not_null_mart_customer_risk_profile_customer_id .................. [PASS in 0.03s]
+13:44:27  40 of 75 PASS not_null_mart_customer_risk_profile_fraud_count .................. [PASS in 0.03s]
+13:44:27  43 of 75 START test not_null_mart_customer_risk_profile_transaction_count ...... [RUN]
+13:44:27  44 of 75 START test unique_mart_customer_risk_profile_customer_id .............. [RUN]
+13:44:27  42 of 75 PASS not_null_mart_customer_risk_profile_total_amount ................. [PASS in 0.03s]
+13:44:27  41 of 75 PASS not_null_mart_customer_risk_profile_labeled_transaction_count .... [PASS in 0.03s]
+13:44:27  45 of 75 START test dbt_utils_unique_combination_of_columns_mart_fraud_by_category_category  [RUN]
+13:44:27  46 of 75 START test not_null_mart_fraud_by_category_category ................... [RUN]
+13:44:27  43 of 75 PASS not_null_mart_customer_risk_profile_transaction_count ............ [PASS in 0.03s]
+13:44:27  44 of 75 PASS unique_mart_customer_risk_profile_customer_id .................... [PASS in 0.03s]
+13:44:27  48 of 75 START test not_null_mart_fraud_by_category_labeled_transaction_count .. [RUN]
+13:44:27  47 of 75 START test not_null_mart_fraud_by_category_fraud_count ................ [RUN]
+13:44:27  46 of 75 PASS not_null_mart_fraud_by_category_category ......................... [PASS in 0.02s]
+13:44:27  45 of 75 PASS dbt_utils_unique_combination_of_columns_mart_fraud_by_category_category  [PASS in 0.03s]
+13:44:27  49 of 75 START test not_null_mart_fraud_by_category_total_amount ............... [RUN]
+13:44:27  50 of 75 START test not_null_mart_fraud_by_category_transaction_count .......... [RUN]
+13:44:27  47 of 75 PASS not_null_mart_fraud_by_category_fraud_count ...................... [PASS in 0.02s]
+13:44:27  48 of 75 PASS not_null_mart_fraud_by_category_labeled_transaction_count ........ [PASS in 0.03s]
+13:44:27  51 of 75 START test unique_mart_fraud_by_category_category ..................... [RUN]
+13:44:27  52 of 75 START test dbt_utils_unique_combination_of_columns_mart_fraud_by_state_us_state  [RUN]
+13:44:27  50 of 75 PASS not_null_mart_fraud_by_category_transaction_count ................ [PASS in 0.02s]
+13:44:27  49 of 75 PASS not_null_mart_fraud_by_category_total_amount ..................... [PASS in 0.02s]
+13:44:27  53 of 75 START test not_null_mart_fraud_by_state_fraud_count ................... [RUN]
+13:44:28  54 of 75 START test not_null_mart_fraud_by_state_labeled_transaction_count ..... [RUN]
+13:44:28  51 of 75 PASS unique_mart_fraud_by_category_category ........................... [PASS in 0.06s]
+13:44:28  55 of 75 START test not_null_mart_fraud_by_state_total_amount .................. [RUN]
+13:44:28  52 of 75 PASS dbt_utils_unique_combination_of_columns_mart_fraud_by_state_us_state  [PASS in 0.07s]
+13:44:28  56 of 75 START test not_null_mart_fraud_by_state_transaction_count ............. [RUN]
+13:44:28  53 of 75 PASS not_null_mart_fraud_by_state_fraud_count ......................... [PASS in 0.07s]
+13:44:28  54 of 75 PASS not_null_mart_fraud_by_state_labeled_transaction_count ........... [PASS in 0.03s]
+13:44:28  57 of 75 START test not_null_mart_fraud_by_state_us_state ...................... [RUN]
+13:44:28  58 of 75 START test unique_mart_fraud_by_state_us_state ........................ [RUN]
+13:44:28  55 of 75 PASS not_null_mart_fraud_by_state_total_amount ........................ [PASS in 0.02s]
+13:44:28  59 of 75 START test dbt_utils_unique_combination_of_columns_mart_hourly_fraud_pattern_day_of_week__transaction_hour  [RUN]
+13:44:28  56 of 75 PASS not_null_mart_fraud_by_state_transaction_count ................... [PASS in 0.02s]
+13:44:28  60 of 75 START test not_null_mart_hourly_fraud_pattern_day_of_week ............. [RUN]
+13:44:28  57 of 75 PASS not_null_mart_fraud_by_state_us_state ............................ [PASS in 0.03s]
+13:44:28  58 of 75 PASS unique_mart_fraud_by_state_us_state .............................. [PASS in 0.02s]
+13:44:28  61 of 75 START test not_null_mart_hourly_fraud_pattern_fraud_count ............. [RUN]
+13:44:28  62 of 75 START test not_null_mart_hourly_fraud_pattern_labeled_transaction_count  [RUN]
+13:44:28  59 of 75 PASS dbt_utils_unique_combination_of_columns_mart_hourly_fraud_pattern_day_of_week__transaction_hour  [PASS in 0.03s]
+13:44:28  63 of 75 START test not_null_mart_hourly_fraud_pattern_total_amount ............ [RUN]
+13:44:28  60 of 75 PASS not_null_mart_hourly_fraud_pattern_day_of_week ................... [PASS in 0.02s]
+13:44:28  64 of 75 START test not_null_mart_hourly_fraud_pattern_transaction_count ....... [RUN]
+13:44:28  62 of 75 PASS not_null_mart_hourly_fraud_pattern_labeled_transaction_count ..... [PASS in 0.02s]
+13:44:28  61 of 75 PASS not_null_mart_hourly_fraud_pattern_fraud_count ................... [PASS in 0.02s]
+13:44:28  65 of 75 START test not_null_mart_hourly_fraud_pattern_transaction_hour ........ [RUN]
+13:44:28  66 of 75 START test assert_fraud_counts ........................................ [RUN]
+13:44:28  63 of 75 PASS not_null_mart_hourly_fraud_pattern_total_amount .................. [PASS in 0.02s]
+13:44:28  67 of 75 START test assert_fraud_rate_bounds ................................... [RUN]
+13:44:28  64 of 75 PASS not_null_mart_hourly_fraud_pattern_transaction_count ............. [PASS in 0.02s]
+13:44:28  68 of 75 START test assert_mart_totals ......................................... [RUN]
+13:44:28  66 of 75 PASS assert_fraud_counts .............................................. [PASS in 0.02s]
+13:44:28  65 of 75 PASS not_null_mart_hourly_fraud_pattern_transaction_hour .............. [PASS in 0.03s]
+13:44:28  69 of 75 START test dbt_utils_unique_combination_of_columns_mart_merchant_analytics_merchant  [RUN]
+13:44:28  70 of 75 START test not_null_mart_merchant_analytics_fraud_count ............... [RUN]
+13:44:28  67 of 75 PASS assert_fraud_rate_bounds ......................................... [PASS in 0.03s]
+13:44:28  71 of 75 START test not_null_mart_merchant_analytics_labeled_transaction_count . [RUN]
+13:44:28  70 of 75 PASS not_null_mart_merchant_analytics_fraud_count ..................... [PASS in 0.03s]
+13:44:28  68 of 75 PASS assert_mart_totals ............................................... [PASS in 0.04s]
+13:44:28  69 of 75 PASS dbt_utils_unique_combination_of_columns_mart_merchant_analytics_merchant  [PASS in 0.03s]
+13:44:28  72 of 75 START test not_null_mart_merchant_analytics_merchant .................. [RUN]
+13:44:28  73 of 75 START test not_null_mart_merchant_analytics_total_amount .............. [RUN]
+13:44:28  74 of 75 START test not_null_mart_merchant_analytics_transaction_count ......... [RUN]
+13:44:28  71 of 75 PASS not_null_mart_merchant_analytics_labeled_transaction_count ....... [PASS in 0.02s]
+13:44:28  75 of 75 START test unique_mart_merchant_analytics_merchant .................... [RUN]
+13:44:28  72 of 75 PASS not_null_mart_merchant_analytics_merchant ........................ [PASS in 0.03s]
+13:44:28  74 of 75 PASS not_null_mart_merchant_analytics_transaction_count ............... [PASS in 0.03s]
+13:44:28  73 of 75 PASS not_null_mart_merchant_analytics_total_amount .................... [PASS in 0.03s]
+13:44:28  75 of 75 PASS unique_mart_merchant_analytics_merchant .......................... [PASS in 0.02s]
+13:44:28
+13:44:28  Finished running 1 seed, 6 table models, 65 data tests, 2 unit tests, 1 view model in 0 hours 0 minutes and 1.35 seconds (1.35s).
+13:44:28
+13:44:28  Completed successfully
+13:44:28
+13:44:28  Done. PASS=75 WARN=0 ERROR=0 SKIP=0 TOTAL=75
+dbt docs generate
+13:44:29  Running with dbt=1.9.10
+13:44:29  Registered adapter: clickhouse=1.9.5
+13:44:30  Found 7 models, 65 data tests, 1 seed, 1 source, 871 macros, 2 unit tests
+13:44:30
+13:44:30  Concurrency: 4 threads (target='dev')
+13:44:30
+13:44:30  Building catalog
+13:44:30  Catalog written to /usr/app/dbt/target/catalog.json
+sqlfluff lint models macros tests
+=== [dbt templater] Sorting Nodes...
+=== [dbt templater] Compiling dbt project...
+=== [dbt templater] Project Compiled.
+WARNING    Skipped file /usr/app/dbt/macros/amount_bucket.sql because it is a macro
+WARNING    Skipped file /usr/app/dbt/macros/clickhouse_day_of_week.sql because it is a macro
+WARNING    Skipped file /usr/app/dbt/macros/customer_risk.sql because it is a macro
+All Finished!

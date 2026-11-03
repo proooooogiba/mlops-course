@@ -1,0 +1,24 @@
+ Container mlops-hw4-clickhouse-1 Running
+ Container mlops-hw4-clickhouse-1 Waiting
+ Container mlops-hw4-clickhouse-1 Healthy
+ Container mlops-hw4-dbt-run-54fdbd3ab302 Creating
+ Container mlops-hw4-dbt-run-54fdbd3ab302 Created
+Core:
+  - installed: 1.9.10
+  - latest:    1.12.6 - Update available!
+
+  Your version of dbt-core is out of date!
+  You can find instructions for upgrading here:
+  https://docs.getdbt.com/docs/installation
+
+Plugins:
+  - clickhouse: 1.9.5 - Update available!
+
+  At least one plugin is out of date with dbt-core.
+  You can find instructions for upgrading here:
+  https://docs.getdbt.com/docs/installation
+
+
+   ┌─clickhouse_version─┬─source_rows─┬─fraud_count─┬─total_amount─┐
+1. │ 25.8.4.13          │      786431 │        4504 │  55239932.49 │
+   └────────────────────┴─────────────┴─────────────┴──────────────┘

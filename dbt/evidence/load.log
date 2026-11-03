@@ -1,0 +1,7 @@
+docker compose -f docker-compose.hw4.yml run --rm --entrypoint python dbt load_source.py /data/train.csv
+ Container mlops-hw4-clickhouse-1 Running
+ Container mlops-hw4-clickhouse-1 Waiting
+ Container mlops-hw4-clickhouse-1 Healthy
+ Container mlops-hw4-dbt-run-1bf244a503be Creating
+ Container mlops-hw4-dbt-run-1bf244a503be Created
+Loaded 786431 transactions from /data/train.csv

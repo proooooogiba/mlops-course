@@ -11,3 +11,9 @@ input/
 results/runtime/
 runtime/
 catboost_info/
+# HW4 dbt local artifacts
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+.venv-dbt/
+dbt/.user.yml

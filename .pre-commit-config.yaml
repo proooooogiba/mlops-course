@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: sqlfluff-lint
+        name: SQLFluff (dbt ClickHouse)
+        entry: make hw4-lint
+        language: system
+        files: ^dbt/.*\.(sql|yml)$
+        pass_filenames: false

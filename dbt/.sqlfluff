@@ -1,0 +1,11 @@
+[sqlfluff]
+dialect = clickhouse
+templater = dbt
+max_line_length = 160
+exclude_rules = ambiguous.column_count, structure.column_order, capitalisation.functions
+[sqlfluff:templater:dbt]
+project_dir = .
+profiles_dir = .
+[sqlfluff:indentation]
+indented_joins = false
+# ClickHouse function names are case-sensitive (countIf, toDate, etc.).

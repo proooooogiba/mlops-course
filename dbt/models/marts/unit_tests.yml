@@ -1,0 +1,21 @@
+version: 2
+unit_tests:
+  - name: category_fraud_excludes_unknown_labels
+    description: NULL-метки входят в оборот, но не в знаменатель fraud_rate.
+    model: mart_fraud_by_category
+    given:
+      - input: ref('stg_transactions')
+        format: sql
+        rows: |
+          select 'shopping' as category, toDecimal64(100, 2) as amount, toNullable(toUInt8(1)) as is_fraud
+          union all
+          select 'shopping', toDecimal64(50, 2), toNullable(toUInt8(0))
+          union all
+          select 'shopping', toDecimal64(25, 2), cast(NULL as Nullable(UInt8))
+    expect:
+      format: sql
+      rows: |
+        select 'shopping' as category, toUInt64(3) as transaction_count,
+          toUInt64(2) as labeled_transaction_count, toUInt64(1) as fraud_count,
+          toFloat64(50) as fraud_rate, toDecimal128(175, 2) as total_amount,
+          toDecimal128(100, 2) as fraud_amount

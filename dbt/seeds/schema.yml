@@ -1,0 +1,15 @@
+version: 2
+seeds:
+  - name: risk_thresholds
+    description: Пороговые значения описательной сегментации риска, в процентах.
+    columns:
+      - name: risk_level
+        description: Нижняя граница сегмента MEDIUM/HIGH.
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: [MEDIUM, HIGH]
+      - name: min_fraud_rate
+        description: Минимальный fraud_rate для сегмента, включительно.
+        data_tests: [not_null]

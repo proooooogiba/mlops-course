@@ -1,0 +1,217 @@
+version: 2
+models:
+- name: mart_daily_state_metrics
+  description: Дневная статистика по штатам; доля крупных операций в процентах, точный P95.
+  columns:
+  - name: transaction_date
+    description: 'Ключ группировки: transaction_date'
+    data_tests:
+    - not_null
+  - name: us_state
+    description: 'Ключ группировки: us_state'
+    data_tests:
+    - not_null
+  - name: transaction_count
+    description: Количество всех транзакций.
+    data_tests:
+    - not_null
+  - name: total_amount
+    description: Оборот по всем транзакциям.
+    data_tests:
+    - not_null
+  - name: average_amount
+    description: Средний чек.
+  - name: p95_amount
+    description: Точный 95-й перцентиль суммы.
+  - name: large_transaction_share
+    description: Процент операций с суммой >=1000.
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - transaction_date
+      - us_state
+- name: mart_fraud_by_category
+  description: Фрод по категориям.
+  columns:
+  - name: category
+    description: 'Ключ группировки: category'
+    data_tests:
+    - not_null
+    - unique
+  - name: transaction_count
+    description: Количество всех транзакций.
+    data_tests:
+    - not_null
+  - name: total_amount
+    description: Оборот по всем транзакциям.
+    data_tests:
+    - not_null
+  - name: labeled_transaction_count
+    description: Число размеченных транзакций.
+    data_tests:
+    - not_null
+  - name: fraud_count
+    description: Число подтвержденных фродов.
+    data_tests:
+    - not_null
+  - name: fraud_rate
+    description: Процент фродов среди размеченных; NULL при отсутствии меток.
+  - name: fraud_amount
+    description: Сумма подтвержденных фродов.
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - category
+- name: mart_fraud_by_state
+  description: Фрод и охват клиентов/мерчантов по штатам.
+  columns:
+  - name: us_state
+    description: 'Ключ группировки: us_state'
+    data_tests:
+    - not_null
+    - unique
+  - name: transaction_count
+    description: Количество всех транзакций.
+    data_tests:
+    - not_null
+  - name: total_amount
+    description: Оборот по всем транзакциям.
+    data_tests:
+    - not_null
+  - name: labeled_transaction_count
+    description: Число размеченных транзакций.
+    data_tests:
+    - not_null
+  - name: fraud_count
+    description: Число подтвержденных фродов.
+    data_tests:
+    - not_null
+  - name: fraud_rate
+    description: Процент фродов среди размеченных; NULL при отсутствии меток.
+  - name: fraud_amount
+    description: Сумма подтвержденных фродов.
+  - name: unique_customers
+    description: Количество уникальных прокси клиентов.
+  - name: unique_merchants
+    description: Количество уникальных мерчантов.
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - us_state
+- name: mart_customer_risk_profile
+  description: История и описательный риск клиента; не прогнозная модель.
+  columns:
+  - name: customer_id
+    description: 'Ключ группировки: customer_id'
+    data_tests:
+    - not_null
+    - unique
+  - name: transaction_count
+    description: Количество всех транзакций.
+    data_tests:
+    - not_null
+  - name: total_amount
+    description: Оборот по всем транзакциям.
+    data_tests:
+    - not_null
+  - name: labeled_transaction_count
+    description: Число размеченных транзакций.
+    data_tests:
+    - not_null
+  - name: fraud_count
+    description: Число подтвержденных фродов.
+    data_tests:
+    - not_null
+  - name: fraud_rate
+    description: Процент фродов среди размеченных; NULL при отсутствии меток.
+  - name: fraud_amount
+    description: Сумма подтвержденных фродов.
+  - name: risk_level
+    description: HIGH >=5%, MEDIUM >=1%, LOW <1%; UNKNOWN без меток.
+    data_tests:
+    - accepted_values:
+        values:
+        - HIGH
+        - MEDIUM
+        - LOW
+        - UNKNOWN
+  - name: average_amount
+    description: Средний чек клиента.
+  - name: first_transaction_at
+    description: Первая операция в доступной истории UTC.
+  - name: last_transaction_at
+    description: Последняя операция в доступной истории UTC.
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - customer_id
+- name: mart_hourly_fraud_pattern
+  description: Фрод по ISO-дню недели и часу UTC.
+  columns:
+  - name: day_of_week
+    description: 'Ключ группировки: day_of_week'
+    data_tests:
+    - not_null
+  - name: transaction_hour
+    description: 'Ключ группировки: transaction_hour'
+    data_tests:
+    - not_null
+  - name: transaction_count
+    description: Количество всех транзакций.
+    data_tests:
+    - not_null
+  - name: total_amount
+    description: Оборот по всем транзакциям.
+    data_tests:
+    - not_null
+  - name: labeled_transaction_count
+    description: Число размеченных транзакций.
+    data_tests:
+    - not_null
+  - name: fraud_count
+    description: Число подтвержденных фродов.
+    data_tests:
+    - not_null
+  - name: fraud_rate
+    description: Процент фродов среди размеченных; NULL при отсутствии меток.
+  - name: fraud_amount
+    description: Сумма подтвержденных фродов.
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - day_of_week
+      - transaction_hour
+- name: mart_merchant_analytics
+  description: Оборот и фрод мерчантов; подозрительность при >=20 метках и >=5% фрода.
+  columns:
+  - name: merchant
+    description: 'Ключ группировки: merchant'
+    data_tests:
+    - not_null
+    - unique
+  - name: transaction_count
+    description: Количество всех транзакций.
+    data_tests:
+    - not_null
+  - name: total_amount
+    description: Оборот по всем транзакциям.
+    data_tests:
+    - not_null
+  - name: labeled_transaction_count
+    description: Число размеченных транзакций.
+    data_tests:
+    - not_null
+  - name: fraud_count
+    description: Число подтвержденных фродов.
+    data_tests:
+    - not_null
+  - name: fraud_rate
+    description: Процент фродов среди размеченных; NULL при отсутствии меток.
+  - name: fraud_amount
+    description: Сумма подтвержденных фродов.
+  - name: is_suspicious
+    description: 1, если не менее 20 меток и fraud_rate >=5%, иначе 0.
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - merchant

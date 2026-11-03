@@ -1,0 +1,19 @@
+version: 2
+sources:
+  - name: raw
+    description: Транзакции из HW2; для схемы из задания задайте DBT_RAW_DATABASE=transactions_db.
+    database: "{{ env_var('DBT_RAW_DATABASE', 'homework') }}"
+    schema: "{{ env_var('DBT_RAW_DATABASE', 'homework') }}"
+    tables:
+      - name: transactions
+        description: Сырые транзакции; target NULL означает отсутствие известной разметки.
+        columns:
+          - name: transaction_time
+            data_tests: [not_null]
+          - name: amount
+            data_tests: [not_null]
+          - name: target
+            data_tests:
+              - accepted_values:
+                  values: [0, 1]
+                  quote: false
