@@ -196,3 +196,15 @@ docker compose down                    # Остановка с сохранен�
 Для полностью чистого прогона остановите стенд, удалите только `runtime/` этого клона и выполните `docker compose down -v`, затем снова `up`. Это удаляет обученную историю, модели, результаты и метаданные Airflow; исходный `data/train.csv` сохраняется. При изменении исходного CSV после seed нужен такой чистый прогон, иначе перезапуск продолжит прежнюю витрину.
 
 Полезные источники: [задание и пример семинара](https://github.com/NikitaMalykhin/mlops_realtime_fraud_detector_airflow), [Airflow в Docker](https://airflow.apache.org/docs/apache-airflow/2.10.5/howto/docker-compose/index.html), [LocalExecutor и PostgreSQL](https://airflow.apache.org/docs/apache-airflow/2.10.5/howto/set-up-database.html), [определение Average Precision](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html). Реализация препроцессинга, SQLite-витрины, gate и публикации в этом решении собственная.
+
+## Домашнее задание №4: dbt
+
+Полный проект, шесть аналитических витрин и инструкции запуска:
+[dbt/README.md](dbt/README.md).
+
+```bash
+make hw4-up
+make hw4-load   # data/train.csv из HW2; только для пустого источника
+make hw4-check
+make hw4-docs   # http://localhost:8082
+```

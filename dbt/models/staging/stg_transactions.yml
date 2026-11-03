@@ -1,0 +1,110 @@
+version: 2
+models:
+- name: stg_transactions
+  description: Нормализация типов, категорий, UTC и сегментов. Строки не удаляются, ошибки обнаруживают
+    тесты.
+  columns:
+  - name: customer_id
+    description: 'Прокси клиента: имя, фамилия и координаты; не банковский идентификатор.'
+    data_tests:
+    - not_null
+  - name: transaction_time
+    description: Время в UTC.
+    data_tests:
+    - not_null
+  - name: transaction_date
+    description: Дата в UTC.
+    data_tests:
+    - not_null
+  - name: merchant
+    description: Мерчант без крайних пробелов.
+    data_tests:
+    - not_null
+  - name: category
+    description: Категория в нижнем регистре.
+    data_tests:
+    - not_null
+  - name: amount
+    description: Сумма с точностью до цента.
+    data_tests:
+    - not_null
+    - dbt_expectations.expect_column_values_to_be_between:
+        min_value: 0
+  - name: us_state
+    description: Код штата в верхнем регистре.
+    data_tests:
+    - not_null
+  - name: is_fraud
+    description: Известная метка 0/1; NULL не участвует в знаменателе fraud_rate.
+    data_tests:
+    - accepted_values:
+        values:
+        - 0
+        - 1
+        quote: false
+  - name: amount_bucket
+    description: SMALL <100; MEDIUM [100,1000); LARGE >=1000.
+    data_tests:
+    - not_null
+    - accepted_values:
+        values:
+        - SMALL
+        - MEDIUM
+        - LARGE
+  - name: day_of_week
+    description: 'День ISO: понедельник=1, воскресенье=7.'
+    data_tests:
+    - accepted_values:
+        values:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        quote: false
+  - name: transaction_hour
+    description: Час UTC 0–23.
+    data_tests:
+    - accepted_values:
+        values:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+        - 16
+        - 17
+        - 18
+        - 19
+        - 20
+        - 21
+        - 22
+        - 23
+        quote: false
+  - name: first_name
+    description: Имя без крайних пробелов.
+  - name: last_name
+    description: Фамилия без крайних пробелов.
+  - name: gender
+    description: Пол в верхнем регистре.
+  - name: latitude
+    description: Широта клиента.
+  - name: longitude
+    description: Долгота клиента.
+  - name: merchant_latitude
+    description: Широта мерчанта.
+  - name: merchant_longitude
+    description: Долгота мерчанта.

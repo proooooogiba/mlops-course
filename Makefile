@@ -23,3 +23,17 @@ verify:
 
 inspect:
 	$(COMPOSE) exec -T scorer python -m scripts.inspect_hw3
+
+.PHONY: hw4-up hw4-load hw4-check hw4-docs
+hw4-up:
+	$(COMPOSE) -f docker-compose.hw4.yml up -d --wait clickhouse
+hw4-load:
+	$(COMPOSE) -f docker-compose.hw4.yml run --rm --entrypoint python dbt load_source.py /data/train.csv
+hw4-check:
+	$(COMPOSE) -f docker-compose.hw4.yml run --rm --entrypoint make dbt check
+hw4-docs:
+	$(COMPOSE) -f docker-compose.hw4.yml run --rm --service-ports dbt docs serve --host 0.0.0.0 --port 8082
+
+.PHONY: hw4-lint
+hw4-lint:
+	$(COMPOSE) -f docker-compose.hw4.yml run --rm --entrypoint sqlfluff dbt lint models macros tests

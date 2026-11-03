@@ -1,0 +1,105 @@
+# HW4: dbt + ClickHouse
+
+Проект реализует полный набор требований на 10 баллов: staging, шесть витрин,
+макросы, dbt_utils/dbt_date/dbt_expectations, generic/singular/unit tests,
+SQLFluff, pre-commit и Makefile. Версии: dbt-core **1.9.10**, dbt-clickhouse **1.9.5**.
+
+## Запуск в Docker
+
+Из корня репозитория (нужны Docker Engine и Compose v2):
+
+```bash
+make hw4-up
+# Один раз: загрузить исходный train.csv из HW2, сохранив его в data/train.csv.
+make hw4-load
+make hw4-check
+make hw4-docs
+```
+
+Документация: http://localhost:8082. ClickHouse: http://localhost:18123.
+`hw4-check` устанавливает пакеты, выполняет `dbt build` (seed, модели,
+включая unit tests и data tests), генерирует Docs и запускает SQLFluff.
+Данные и результаты находятся в отдельном проекте Compose `mlops-hw4`.
+Загрузчик не добавляет строки повторно в непустой источник. При прерывании
+загрузки используйте новый том HW4 или очистите только изолированную исходную
+таблицу перед повторной загрузкой.
+
+Для отдельных команд:
+
+```bash
+docker compose -f docker-compose.hw4.yml run --rm dbt deps
+docker compose -f docker-compose.hw4.yml run --rm dbt seed
+docker compose -f docker-compose.hw4.yml run --rm dbt run
+docker compose -f docker-compose.hw4.yml run --rm dbt test
+docker compose -f docker-compose.hw4.yml run --rm dbt docs generate
+```
+
+## Существующий источник из HW2
+
+```bash
+python3.11 -m venv .venv-dbt
+. .venv-dbt/bin/activate
+pip install -r dbt/requirements.txt
+cd dbt
+export DBT_PROFILES_DIR="$PWD"
+export DBT_RAW_DATABASE=homework
+# При необходимости: DBT_CH_HOST, DBT_CH_PORT, DBT_CH_USER, DBT_CH_PASSWORD,
+# DBT_CH_SCHEMA (по умолчанию fraud_analytics), DBT_CH_SECURE=true для TLS.
+make check
+make serve
+```
+
+`homework.transactions` — реальное имя источника HW2 этого репозитория.
+В изолированном Docker-запуске используется `transactions_db.transactions`,
+как в задании. Загрузчик предназначен только для этого изолированного источника.
+Пароли профиля читаются из окружения; значения по умолчанию предназначены
+для локальной учебной установки.
+
+## Модели и правила
+
+| Модель | Зерно | Метрики |
+|---|---|---|
+| stg_transactions | исходная транзакция | UTC, типы, нормализация, сегмент суммы, прокси клиента |
+| mart_daily_state_metrics | дата × штат | количество, оборот, средний чек, точный P95, доля крупных (%) |
+| mart_fraud_by_category | категория | количество/число меток/фродов, fraud_rate (%), оборот, сумма фрода |
+| mart_fraud_by_state | штат | фрод, суммы, уникальные клиенты и мерчанты |
+| mart_customer_risk_profile | прокси клиента | история, средний чек, fraud_rate, сегмент риска |
+| mart_hourly_fraud_pattern | ISO-день недели × час UTC | число операций, фрод, суммы |
+| mart_merchant_analytics | мерчант | оборот, фрод, флаг подозрительности |
+
+Макрос `amount_bucket`: SMALL <100, MEDIUM от 100 до 1000, LARGE >=1000.
+`customer_risk`: HIGH >=5%, MEDIUM >=1%, LOW <1%, UNKNOWN при отсутствии меток;
+границы заданы seed `risk_thresholds`. Подозрительный мерчант: не менее 20
+размеченных операций и fraud_rate >=5%. Это описательные признаки по всей
+истории, не предиктивные признаки для обучения модели (возможна утечка таргета).
+
+Процент фрода вычисляется только среди размеченных транзакций. Без меток
+возвращается NULL. Отрицательные суммы и неверные метки не удаляются молча:
+они приводят к провалу тестов. Количество и оборот каждой витрины сверяются
+со staging. Источник должен быть стабилен на время build и тестов.
+
+Идентификатор клиента — хеш имени, фамилии и координат. Исходный датасет не
+содержит банковского ID: возможны коллизии смысла и разделение одного человека
+при смене адреса. Уникальность транзакций не предполагается: в схеме задания
+нет transaction_id. Уникальность проверяется на зерне каждой витрины.
+
+## Тесты и качество
+
+- `not_null`, `unique`, `accepted_values`, `dbt_utils.unique_combination_of_columns`.
+- `dbt_expectations.expect_column_values_to_be_between`: неотрицательная сумма.
+- Singular: отрицательные суммы, границы fraud_rate, согласованность счетчиков
+  и NULL, сверка количества и оборота.
+- Unit: границы сегментов суммы и нормализация staging; расчет категории
+  с фродом, легитимной операцией и неизвестной меткой.
+- SQLFluff использует ClickHouse dialect и dbt templater. Проверка регистра
+  функций отключена, поскольку ClickHouse использует имена `countIf`, `toDate`.
+- Установка hook: `pre-commit install` в корне репозитория после установки
+  `dbt/requirements.txt`. Hook запускает SQLFluff в Docker; сначала выполните `make hw4-up` и
+  `make hw4-check`.
+
+Свидетельства запуска и скриншот dbt Docs: каталог `evidence/`.
+
+Проверено на 786 431 транзакции: `dbt build` — 75/75, `dbt test` — 67/67,
+SQLFluff — без ошибок. [Полный лог](evidence/check.log),
+[лог dbt test](evidence/dbt-test.log), [DAG](evidence/dbt-docs-dag.png).
+Готовый текст для PR: [PR_DESCRIPTION.md](PR_DESCRIPTION.md).

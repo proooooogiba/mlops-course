@@ -1,0 +1,12 @@
+fraud_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: clickhouse
+      host: "{{ env_var('DBT_CH_HOST', 'localhost') }}"
+      port: "{{ env_var('DBT_CH_PORT', '8123') | int }}"
+      user: "{{ env_var('DBT_CH_USER', 'homework') }}"
+      password: "{{ env_var('DBT_CH_PASSWORD', 'homework') }}"
+      schema: "{{ env_var('DBT_CH_SCHEMA', 'fraud_analytics') }}"
+      secure: "{{ env_var('DBT_CH_SECURE', 'false') | lower == 'true' }}"
+      threads: 4

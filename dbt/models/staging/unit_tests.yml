@@ -1,0 +1,67 @@
+version: 2
+unit_tests:
+  - name: amount_bucket_boundaries
+    description: Точные границы сегментов суммы 100 и 1000.
+    model: stg_transactions
+    given:
+      - input: source('raw', 'transactions')
+        format: sql
+        rows: |
+          select toDateTime('2020-01-01 00:00:00', 'UTC') as transaction_time,
+            ' shop ' as merch, ' SHOPPING ' as cat_id, arrayJoin([0., 99.99, 100., 999.99, 1000.]) as amount,
+            ' Ann ' as name_1, ' Lee ' as name_2, 'f' as gender, 'ny' as us_state,
+            toFloat64(40) as lat, toFloat64(-73) as lon,
+            toFloat64(40) as merchant_lat, toFloat64(-73) as merchant_lon,
+            toNullable(toUInt8(0)) as target
+    expect:
+      format: sql
+      rows: |
+        select toDateTime('2020-01-01 00:00:00', 'UTC') as transaction_time,
+          'shop' as merchant, 'shopping' as category, toDecimal64('0', 2) as amount,
+          'Ann' as first_name, 'Lee' as last_name, 'F' as gender, 'NY' as us_state,
+          toFloat64(40) as latitude, toFloat64(-73) as longitude,
+          toFloat64(40) as merchant_latitude, toFloat64(-73) as merchant_longitude,
+          toNullable(toUInt8(0)) as is_fraud,
+          '9bf89b3dfe82bccf86062353e1e80c76' as customer_id,
+          toDate('2020-01-01') as transaction_date, toUInt8(0) as transaction_hour,
+          toUInt8(3) as day_of_week, 'SMALL' as amount_bucket
+        union all
+        select toDateTime('2020-01-01 00:00:00', 'UTC') as transaction_time,
+          'shop' as merchant, 'shopping' as category, toDecimal64('99.99', 2) as amount,
+          'Ann' as first_name, 'Lee' as last_name, 'F' as gender, 'NY' as us_state,
+          toFloat64(40) as latitude, toFloat64(-73) as longitude,
+          toFloat64(40) as merchant_latitude, toFloat64(-73) as merchant_longitude,
+          toNullable(toUInt8(0)) as is_fraud,
+          '9bf89b3dfe82bccf86062353e1e80c76' as customer_id,
+          toDate('2020-01-01') as transaction_date, toUInt8(0) as transaction_hour,
+          toUInt8(3) as day_of_week, 'SMALL' as amount_bucket
+        union all
+        select toDateTime('2020-01-01 00:00:00', 'UTC') as transaction_time,
+          'shop' as merchant, 'shopping' as category, toDecimal64('100', 2) as amount,
+          'Ann' as first_name, 'Lee' as last_name, 'F' as gender, 'NY' as us_state,
+          toFloat64(40) as latitude, toFloat64(-73) as longitude,
+          toFloat64(40) as merchant_latitude, toFloat64(-73) as merchant_longitude,
+          toNullable(toUInt8(0)) as is_fraud,
+          '9bf89b3dfe82bccf86062353e1e80c76' as customer_id,
+          toDate('2020-01-01') as transaction_date, toUInt8(0) as transaction_hour,
+          toUInt8(3) as day_of_week, 'MEDIUM' as amount_bucket
+        union all
+        select toDateTime('2020-01-01 00:00:00', 'UTC') as transaction_time,
+          'shop' as merchant, 'shopping' as category, toDecimal64('999.99', 2) as amount,
+          'Ann' as first_name, 'Lee' as last_name, 'F' as gender, 'NY' as us_state,
+          toFloat64(40) as latitude, toFloat64(-73) as longitude,
+          toFloat64(40) as merchant_latitude, toFloat64(-73) as merchant_longitude,
+          toNullable(toUInt8(0)) as is_fraud,
+          '9bf89b3dfe82bccf86062353e1e80c76' as customer_id,
+          toDate('2020-01-01') as transaction_date, toUInt8(0) as transaction_hour,
+          toUInt8(3) as day_of_week, 'MEDIUM' as amount_bucket
+        union all
+        select toDateTime('2020-01-01 00:00:00', 'UTC') as transaction_time,
+          'shop' as merchant, 'shopping' as category, toDecimal64('1000', 2) as amount,
+          'Ann' as first_name, 'Lee' as last_name, 'F' as gender, 'NY' as us_state,
+          toFloat64(40) as latitude, toFloat64(-73) as longitude,
+          toFloat64(40) as merchant_latitude, toFloat64(-73) as merchant_longitude,
+          toNullable(toUInt8(0)) as is_fraud,
+          '9bf89b3dfe82bccf86062353e1e80c76' as customer_id,
+          toDate('2020-01-01') as transaction_date, toUInt8(0) as transaction_hour,
+          toUInt8(3) as day_of_week, 'LARGE' as amount_bucket
